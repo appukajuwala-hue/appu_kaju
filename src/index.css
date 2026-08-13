@@ -1,0 +1,457 @@
+@import url("https://fonts.googleapis.com/css2?family=Antonio:wght@400..700&family=Inter:wght@400;500;600&display=swap");
+@import "tailwindcss";
+
+/* Palette taken from the real Appu Kaju packaging:
+   the three sub-brands are a blue family (Kuber aqua -> Appu royal -> Rimmee navy),
+   and the master logo supplies the yellow / red / green highlights. */
+@theme {
+  --color-cream: #f6efe2;
+  --color-kernel: #e9d5b4;
+  --color-ink: #0e2a4e;
+  --color-navy: #12386e;
+  --color-royal: #1b6cb5;
+  --color-sky: #7fd0e0;
+  --color-gold: #f2b705;
+  --color-chilli: #d32027;
+  --color-leaf: #3f7a3b;
+
+  --font-sans: "Antonio", sans-serif;
+  --font-paragraph: "Inter", system-ui, sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: #f6efe2;
+  color: #0e2a4e;
+  font-family: "Antonio", sans-serif;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Keep the scrollbar usable rather than hiding it as the reference did,
+   but tone it down to match the palette. */
+body::-webkit-scrollbar {
+  width: 10px;
+}
+body::-webkit-scrollbar-track {
+  background: #f6efe2;
+}
+body::-webkit-scrollbar-thumb {
+  background: #c8b998;
+  border-radius: 99px;
+}
+
+::selection {
+  background: #f2b705;
+  color: #0e2a4e;
+}
+
+:focus-visible {
+  outline: 3px solid #1b6cb5;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Tailwind v4: custom utilities must be declared with @utility so they can be
+   used inside @apply further down. @layer utilities does not register them. */
+@utility flex-center {
+  @apply flex justify-center items-center;
+}
+@utility col-center {
+  @apply flex flex-col justify-center items-center;
+}
+@utility abs-center {
+  @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+}
+/* Display type scales with the viewport so it keeps filling a wide screen,
+   matching the reference's ratios rather than topping out at a fixed rem. */
+@utility general-title {
+  @apply 2xl:text-[8.5rem] md:text-8xl text-5xl font-bold uppercase md:leading-[9vw] leading-[1.02] md:tracking-[-.35vw] tracking-[-.02em];
+}
+@utility section-title {
+  @apply 2xl:text-[6.5rem] md:text-7xl text-4xl font-bold uppercase md:leading-[7vw] leading-[1.02] md:tracking-[-.25vw] tracking-[-.02em];
+}
+@utility eyebrow {
+  @apply font-paragraph text-xs uppercase tracking-[.25em] font-semibold;
+}
+/* Full-bleed: padding only, no centred max-width. Sections span the viewport
+   the way the reference does. */
+@utility wrap {
+  @apply w-full md:px-10 px-5;
+}
+/* For running copy that still needs a readable measure inside a full-bleed
+   section. */
+@utility wrap-text {
+  @apply max-w-2xl;
+}
+
+@layer components {
+  .paragraph-line {
+    @apply text-nowrap overflow-hidden;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 bg-gold text-ink uppercase font-bold md:text-lg text-base rounded-full md:px-12 px-8 md:py-5 py-4 transition-transform hover:scale-105 active:scale-100;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 border-2 border-current uppercase font-bold md:text-lg text-base rounded-full md:px-10 px-7 md:py-4 py-3 transition-colors;
+  }
+
+  /* ---------------------------------------------------------- hero */
+  .hero-container {
+    @apply relative bg-cream w-screen min-h-dvh overflow-hidden;
+
+    /* Just enough veil to hold the navy headline's contrast, kept light so the
+       footage still reads. Measured: the clip's centre band sits at luminance
+       160-184 throughout, so a 0.4 cream veil keeps text well above 7:1. */
+    .hero-scrim {
+      background: linear-gradient(
+        to bottom,
+        rgb(246 239 226 / 0.2) 0%,
+        rgb(246 239 226 / 0.42) 38%,
+        rgb(246 239 226 / 0.42) 62%,
+        rgb(246 239 226 / 0.18) 100%
+      );
+    }
+
+    .hero-content {
+      @apply relative z-10 w-full min-h-dvh flex flex-col justify-center items-center text-center md:pt-24 pt-28 pb-16;
+
+      .hero-title {
+        @apply text-ink 2xl:text-[9rem] md:text-[6.5rem] text-[3.2rem] font-bold uppercase leading-[0.9] tracking-[-.035em];
+      }
+
+      .hero-text-scroll {
+        @apply rotate-[-3deg] my-4 border-[.5vw] border-cream;
+
+        .hero-subtitle {
+          @apply bg-royal;
+        }
+
+        h2 {
+          @apply uppercase 2xl:text-[9rem] md:text-[6.5rem] text-[3.2rem] font-bold text-cream leading-[0.9] tracking-[-.035em] 2xl:px-[1.2vw] px-3 pb-4 pt-2;
+        }
+      }
+
+      p {
+        @apply font-paragraph text-ink/80 md:max-w-xl max-w-sm px-5 md:text-lg leading-relaxed mt-4;
+      }
+    }
+  }
+
+  /* ------------------------------------------------------- message */
+  .message-content {
+    @apply bg-navy text-cream min-h-dvh overflow-hidden flex justify-center items-center relative z-20;
+
+    .msg-wrapper {
+      @apply 2xl:text-[7.5rem] md:text-7xl text-4xl font-bold uppercase leading-[1.05] tracking-[-.03em] flex flex-col justify-center items-center md:gap-20 gap-12;
+
+      /* Resting colour is readable; StorySection dims it via gsap.set only
+         when it can scrub it back to full. */
+      h2 {
+        @apply 2xl:max-w-5xl md:max-w-3xl max-w-xs text-center text-cream;
+      }
+    }
+
+    p {
+      @apply text-center font-paragraph text-cream/75;
+    }
+
+    .msg-text-scroll {
+      @apply rotate-[3deg] absolute z-10 border-[.5vw] border-navy;
+    }
+  }
+
+  /* ------------------------------------------------- product slider */
+  .brand-section {
+    @apply min-h-dvh bg-cream overflow-hidden;
+
+    .slider-wrapper {
+      @apply lg:h-dvh min-h-fit w-full;
+
+      .brands {
+        @apply h-full w-full flex md:flex-row flex-col items-center 2xl:gap-40 lg:gap-28 md:gap-16 gap-10 flex-nowrap md:py-0 py-10;
+      }
+    }
+  }
+
+  /* Wrapper is deliberately NOT clipped — the pack standing proud of the
+     colour panel is the whole effect. It is sized to leave clearance inside
+     the slider viewport so nothing gets cut. */
+  .brand-card {
+    @apply relative flex-none lg:w-[46vw] lg:h-[70vh] md:w-[72vw] md:h-[58vh] w-[85vw] h-[26rem];
+  }
+
+  /* The colour panel sits at the bottom and is shorter than the wrapper. That
+     gap at the top is the room the pack rises into. */
+  .brand-panel {
+    @apply absolute inset-x-0 bottom-0 lg:h-[82%] h-[85%] rounded-[2rem] overflow-hidden;
+    box-shadow: 0 24px 60px rgb(14 42 78 / 0.18);
+  }
+
+  /* The pack PNGs have had their studio background cut to transparency, so
+     they sit directly on the card colour — no blend mode, true product
+     colour, real shadow. */
+  /* Taller than the wrapper on purpose: the pack should dominate the card and
+     stand well clear of the panel's top edge, as the reference's can does. */
+  .brand-pack {
+    @apply absolute left-1/2 -translate-x-1/2 bottom-[3%] lg:h-[106%] h-[94%] object-contain pointer-events-none;
+    filter: drop-shadow(0 22px 34px rgb(0 0 0 / 0.4));
+  }
+
+  .brand-meta {
+    @apply absolute lg:bottom-10 bottom-6 lg:left-10 left-6 z-20;
+
+    h3 {
+      @apply lg:text-6xl md:text-5xl text-3xl font-bold uppercase tracking-tight leading-none mt-1;
+    }
+  }
+
+  .brand-price {
+    @apply absolute lg:bottom-10 bottom-6 lg:right-10 right-6 z-20 font-paragraph font-semibold md:text-lg;
+  }
+
+  /* ------------------------------------------------------ nutrients */
+  .nutrition-section {
+    @apply relative min-h-dvh overflow-hidden bg-kernel/40;
+
+    /* Slightly over-tall so the parallax drift never exposes an edge. */
+    .nutrition-bg {
+      @apply absolute inset-0 w-full h-[112%] object-cover object-center -top-[6%];
+    }
+
+    /* Panel behind the white bold note, so it stays readable over the photo. */
+    .nutrient-note {
+      @apply bg-ink/80 rounded-3xl md:px-7 px-6 md:py-6 py-5 shadow-2xl;
+      backdrop-filter: blur(2px);
+    }
+
+    /* Softens the hard cut where the photograph meets the next section. */
+    .nutrition-fade {
+      @apply absolute inset-x-0 bottom-0 h-32 pointer-events-none;
+      background: linear-gradient(
+        to bottom,
+        rgb(233 213 180 / 0) 0%,
+        rgb(233 213 180 / 0.55) 100%
+      );
+    }
+  }
+
+  /* The reference's floating pill, sitting over the bottom of the photograph.
+     Solid fill, not a backdrop blur — blur rendered a rectangular halo around
+     the rounded shape. */
+  .nutrient-strip {
+    @apply bg-cream rounded-full border-[6px] border-kernel/50 mx-auto max-w-7xl md:py-7 py-6 md:px-8 px-4 grid grid-cols-2 md:grid-cols-5 gap-y-6;
+    box-shadow: 0 18px 50px rgb(14 42 78 / 0.18);
+
+    .nutrient {
+      @apply relative col-center text-center px-2;
+    }
+
+    .spacer-border {
+      @apply hidden md:block absolute right-0 top-1/2 -translate-y-1/2 h-14 w-px bg-ink/20;
+    }
+  }
+
+  /* ------------------------------------------------------- benefits */
+  .benefit-section {
+    @apply min-h-dvh bg-ink overflow-hidden relative pt-24;
+
+    > .wrap > p {
+      @apply text-cream/70 font-paragraph text-center md:text-lg;
+    }
+  }
+
+  /* ---------------------------------------------- pinned video reveal */
+  .vd-pin-section {
+    @apply relative md:h-[110vh] h-dvh overflow-hidden md:mt-0 mt-14;
+
+    video {
+      @apply size-full absolute inset-0 object-cover;
+    }
+
+    .video-box {
+      @apply relative bg-ink;
+    }
+
+    .play-btn {
+      @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 md:size-[7vw] size-16 flex-center rounded-full border border-cream/30 transition-colors cursor-pointer;
+      background: rgb(255 255 255 / 0.12);
+      backdrop-filter: blur(14px);
+    }
+
+    .play-btn:hover {
+      background: rgb(255 255 255 / 0.22);
+    }
+  }
+
+  .clip-title {
+    @apply md:text-7xl text-3xl font-bold uppercase tracking-tight px-6 md:px-10 py-2 md:py-3 border-[6px] my-2;
+  }
+
+  /* ------------------------------------------------------ process */
+  /* Row that slides sideways at lg+; a plain vertical stack below that, so
+     there is never a native horizontal scrollbar. */
+  .process-track {
+    @apply flex lg:flex-row flex-col lg:flex-nowrap items-stretch lg:gap-10 gap-6;
+  }
+
+  .process-card {
+    @apply lg:flex-none lg:w-[28rem] w-full rounded-3xl bg-cream border-2 border-ink/10 p-8 flex flex-col gap-4;
+
+    .step-n {
+      @apply text-6xl font-bold text-royal/25 leading-none;
+    }
+
+    h3 {
+      @apply text-3xl font-bold uppercase tracking-tight;
+    }
+
+    p {
+      @apply font-paragraph text-ink/75 leading-relaxed;
+    }
+  }
+
+  /* ------------------------------------------- health card stack */
+  .health-stack {
+    @apply relative w-full bg-cream overflow-hidden lg:h-dvh py-20 lg:py-0;
+
+    .hs-titles {
+      @apply absolute inset-0 hidden lg:flex flex-col justify-center items-start pointer-events-none select-none;
+
+      /* Sized so all three lines fit the viewport — at the reference's 20.5vw
+         the third line was cut in half, which reads as broken rather than
+         deliberate. */
+      h2 {
+        @apply uppercase font-bold text-[14vw] leading-[0.88] tracking-[-.3vw] ml-[2vw];
+      }
+    }
+
+    /* Fanned row. These cards carry body text, so unlike the reference's video
+       thumbnails they must NOT overlap — overlap clipped words mid-sentence.
+       The rotations alone give the scattered feel. */
+    .hs-cards {
+      /* Gap must clear the rotated bounding boxes (a 5deg tilt widens a card
+         by ~35px), otherwise neighbours clip each other's text. */
+      @apply relative z-10 lg:absolute lg:inset-x-0 lg:bottom-[6vh] flex lg:flex-row flex-col lg:justify-center items-center lg:items-end gap-8 lg:gap-10 wrap;
+    }
+  }
+
+  .health-card {
+    @apply flex-none w-full lg:w-[21rem] lg:h-[26rem] rounded-[1.6vw] max-lg:rounded-3xl p-7 border-[.4vw] max-lg:border-4 border-cream flex flex-col;
+    box-shadow: 0 24px 60px rgb(14 42 78 / 0.22);
+
+    .hc-num {
+      @apply font-bold text-5xl leading-none opacity-40;
+    }
+
+    h3 {
+      @apply text-3xl font-bold uppercase tracking-tight leading-none mt-3;
+    }
+
+    .hc-headline {
+      @apply font-paragraph text-sm font-semibold opacity-80 mt-1.5;
+    }
+
+    ul {
+      @apply mt-4 flex flex-col gap-2 font-paragraph text-sm leading-snug opacity-90;
+    }
+
+    li {
+      @apply relative ps-4;
+    }
+
+    li::before {
+      content: "";
+      @apply absolute left-0 top-[0.55em] size-1.5 rounded-full bg-current opacity-60;
+    }
+  }
+
+  /* -------------------------------------------------- testimonials */
+  .quote-card {
+    @apply rounded-3xl bg-cream border-2 border-ink/10 p-8 flex flex-col gap-5 h-full;
+
+    blockquote {
+      @apply font-paragraph md:text-xl text-lg leading-relaxed text-ink;
+    }
+  }
+
+  /* --------------------------------------------------------- footer */
+  .footer-section {
+    @apply overflow-hidden relative bg-ink text-cream;
+
+    /* Lighten drops the video's black background out over the dark ground.
+       The radial mask fades the edges so if the source's blacks are lifted at
+       all, it feathers away instead of showing as a lit rectangle. */
+    .footer-pour {
+      @apply absolute md:top-0 top-10 left-1/2 -translate-x-1/2 md:w-[70vw] w-[150vw] max-w-none object-contain pointer-events-none opacity-90;
+      mix-blend-mode: lighten;
+      -webkit-mask-image: radial-gradient(
+        ellipse 62% 62% at 50% 45%,
+        #000 55%,
+        transparent 100%
+      );
+      mask-image: radial-gradient(
+        ellipse 62% 62% at 50% 45%,
+        #000 55%,
+        transparent 100%
+      );
+    }
+
+    .footer-hash {
+      @apply general-title text-center text-cream w-full;
+    }
+
+    .social-btn {
+      @apply border border-cream/25 size-14 flex-center rounded-full hover:bg-cream/10 transition-colors;
+    }
+
+    .copyright-box {
+      @apply w-full border-t border-cream/15 md:px-10 px-5 py-7 mt-16 text-cream/60 font-paragraph text-sm flex gap-4 md:flex-row flex-col-reverse md:justify-between justify-center items-center;
+    }
+  }
+
+  /* ----------------------------------------------------------- nav */
+  .nav-link {
+    @apply relative font-paragraph text-sm font-semibold uppercase tracking-widest py-1 transition-opacity hover:opacity-100 opacity-70;
+  }
+  .nav-link.is-active {
+    @apply opacity-100;
+  }
+  .nav-link.is-active::after {
+    content: "";
+    @apply absolute left-0 -bottom-0.5 h-0.5 w-full bg-gold;
+  }
+}
+
+.spin-slow {
+  animation: spin 22s linear infinite;
+}
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Respect the OS setting: kill transitions/animations and let ScrollTrigger
+   fall back to static layout (guarded in JS via usePrefersReducedMotion). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spin-slow {
+    animation: none;
+  }
+}

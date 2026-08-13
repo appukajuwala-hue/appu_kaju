@@ -1,0 +1,34 @@
+import { Routes, Route } from "react-router-dom";
+
+import NavBar from "./components/NavBar";
+import Footer from "./components/Footer";
+import ScrollToTop from "./components/ScrollToTop";
+
+import Home from "./pages/Home";
+import About from "./pages/About";
+import Shop from "./pages/Shop";
+import Process from "./pages/Process";
+import Health from "./pages/Health";
+import Contact from "./pages/Contact";
+import NotFound from "./pages/NotFound";
+
+const App = () => (
+  <>
+    <ScrollToTop />
+    <NavBar />
+    <main id="main">
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/shop" element={<Shop />} />
+        <Route path="/process" element={<Process />} />
+        <Route path="/health" element={<Health />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </main>
+    <Footer />
+  </>
+);
+
+export default App;
