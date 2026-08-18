@@ -1,5 +1,5 @@
 // Single source of truth for all site content.
-// Everything here is taken from appukaju.com (scraped 2026-08-13).
+// Product range, pricing and company details as of 2026-08.
 
 export const company = {
   name: "Appu Kaju",
@@ -19,7 +19,6 @@ export const company = {
   emails: ["appukaju@gmail.com", "appukajuwala@gmail.com"],
   facebook: "https://www.facebook.com/people/AppuKaju/61557383272183/",
   instagram: "https://www.instagram.com/appukaju.in/",
-  storeUrl: "https://appukaju.com/shop/",
   mapQuery: "L.D.A Shop No 1, City Station Road, Subhash Marg, Lucknow",
 };
 
@@ -88,7 +87,8 @@ export const products = [
     weightKg: 0.25,
     price: 219,
     image: "/images/kuber-kaju.png",
-    url: "https://appukaju.com/product/kuber-kaju-250-gm/",
+    description:
+      "A 250 g pouch of our everyday grade — evenly roasted whole kernels. The size to keep in the kitchen for cooking, garnishing and snacking through the week.",
   },
   {
     id: "kuber-10kg",
@@ -98,7 +98,8 @@ export const products = [
     weightKg: 10,
     price: 8760,
     image: "/images/kuber-kaju.png",
-    url: "https://appukaju.com/product/kuber-kaju-10kg/",
+    description:
+      "Ten kilos of our everyday grade, packed for kitchens that get through kaju by the sack — mithai counters, caterers and restaurant prep.",
   },
   {
     id: "appu-250",
@@ -108,7 +109,8 @@ export const products = [
     weightKg: 0.25,
     price: 243,
     image: "/images/appu-kaju.png",
-    url: "https://appukaju.com/product/appu-kaju-250gm/",
+    description:
+      "Our signature grade in a 250 g pouch. Whole white kernels, hand-sorted for size and colour — the pack to start with if you are new to us.",
   },
   {
     id: "appu-1kg",
@@ -118,7 +120,8 @@ export const products = [
     weightKg: 1,
     price: 972,
     image: "/images/appu-kaju.png",
-    url: "https://appukaju.com/product/appu-kaju-1-kg/",
+    description:
+      "A full kilo of the grade the shop was built on. Enough for a month of family cooking, and the size most of our regulars reorder.",
   },
   {
     id: "appu-10kg",
@@ -128,7 +131,8 @@ export const products = [
     weightKg: 10,
     price: 9720,
     image: "/images/appu-kaju.png",
-    url: "https://appukaju.com/product/appu-kaju-10-kg/",
+    description:
+      "Bulk signature grade for shops and commercial kitchens — the same hand-sorted kernels as the retail pouch, vacuum-sealed in a 10 kg carton.",
   },
   {
     id: "rimmee-250",
@@ -138,7 +142,8 @@ export const products = [
     weightKg: 0.25,
     price: 300,
     image: "/images/rimmee-kaju.png",
-    url: "https://appukaju.com/product/rimmee-kaju-250-gm/",
+    description:
+      "Our top selection in a 250 g pouch: the largest, palest, most uniform kernels of the harvest. The one to take to someone's house.",
   },
   {
     id: "rimmee-1kg",
@@ -148,7 +153,8 @@ export const products = [
     weightKg: 1,
     price: 1200,
     image: "/images/rimmee-kaju.png",
-    url: "https://appukaju.com/product/rimmee-kaju-1-kg/",
+    description:
+      "A kilo of premium grade, sized for festival gifting and for households that want the best on the table at Diwali.",
   },
   {
     id: "rimmee-10kg",
@@ -158,7 +164,8 @@ export const products = [
     weightKg: 10,
     price: 12000,
     image: "/images/rimmee-kaju-10kg.png",
-    url: "https://appukaju.com/product/rimmee-kaju-10-kg/",
+    description:
+      "Ten kilos of our finest grade, for premium retailers and gifting operations that need volume without dropping the standard.",
   },
 ];
 
@@ -313,7 +320,7 @@ export const benefitTitles = [
 ];
 
 // ---------------------------------------------------------------------------
-// Testimonials — Google reviews surfaced on appukaju.com (2024)
+// Testimonials — customer reviews left on Google (2024)
 // ---------------------------------------------------------------------------
 
 export const testimonials = [

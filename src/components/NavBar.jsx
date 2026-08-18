@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { navLinks, company } from "../constants";
+import CartButton from "./CartButton";
 
 const NavBar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -68,14 +69,14 @@ const NavBar = () => {
           ))}
         </ul>
 
-        <a
-          href={company.storeUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="hidden md:inline-flex bg-ink text-cream font-paragraph text-xs font-semibold uppercase tracking-widest rounded-full px-6 py-3 hover:bg-royal transition-colors"
-        >
-          Order now
-        </a>
+        <div className="flex items-center md:gap-3 gap-1">
+          <NavLink
+            to="/shop"
+            className="hidden md:inline-flex bg-ink text-cream font-paragraph text-xs font-semibold uppercase tracking-widest rounded-full px-6 py-3 hover:bg-royal transition-colors"
+          >
+            Order now
+          </NavLink>
+          <CartButton />
 
         {/* mobile toggle */}
         <button
@@ -101,7 +102,8 @@ const NavBar = () => {
               open ? "-translate-y-2 -rotate-45" : ""
             }`}
           />
-        </button>
+          </button>
+        </div>
       </nav>
 
       {/* mobile drawer */}
@@ -127,14 +129,9 @@ const NavBar = () => {
             </li>
           ))}
           <li>
-            <a
-              href={company.storeUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-5 btn-primary w-full justify-center"
-            >
+            <NavLink to="/shop" className="mt-5 btn-primary w-full justify-center">
               Order now
-            </a>
+            </NavLink>
           </li>
         </ul>
       </div>

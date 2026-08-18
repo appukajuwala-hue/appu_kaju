@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Seo from "../components/Seo";
 import PageHeader from "../components/PageHeader";
 import { gsap, useGSAP, usePrefersReducedMotion } from "../lib/gsap";
+import { useCart } from "../cart/context";
 import { products, brands, productPromises, productUses } from "../constants";
 
 const SORTS = {
@@ -13,8 +14,23 @@ const SORTS = {
 const Shop = () => {
   const root = useRef(null);
   const reduced = usePrefersReducedMotion();
+  const { add, openCart } = useCart();
   const [brandId, setBrandId] = useState("all");
   const [sort, setSort] = useState("price-asc");
+  const [added, setAdded] = useState(null);
+
+  // Flash "Added ✓" on the button that was pressed, then revert.
+  useEffect(() => {
+    if (!added) return undefined;
+    const t = setTimeout(() => setAdded(null), 1400);
+    return () => clearTimeout(t);
+  }, [added]);
+
+  const addToCart = (p) => {
+    add(p.id);
+    setAdded(p.id);
+    openCart();
+  };
 
   const visible = useMemo(() => {
     const list =
@@ -53,7 +69,7 @@ const Shop = () => {
       <PageHeader
         eyebrow="The range"
         title="Eight packs, three grades"
-        lead="Pick the grade, then the size. Every pack is vacuum-sealed and 100% natural. Checkout happens on our main store."
+        lead="Pick the grade, then the size. Every pack is vacuum-sealed, 100% natural, and delivered free anywhere in India."
       />
 
       {/* controls */}
@@ -143,6 +159,10 @@ const Shop = () => {
                       {p.size} pack
                     </p>
 
+                    <p className="font-paragraph text-sm text-ink/70 leading-relaxed mt-3">
+                      {p.description}
+                    </p>
+
                     <p className="font-bold text-3xl tracking-tight text-ink mt-4">
                       ₹{p.price.toLocaleString("en-IN")}
                     </p>
@@ -151,14 +171,18 @@ const Shop = () => {
                       per kg
                     </p>
 
-                    <a
-                      href={p.url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="btn-primary w-full justify-center mt-6 md:text-sm text-sm md:px-6 md:py-4"
-                    >
-                      Buy on our store
-                    </a>
+                    {/* mt-auto pins the button to the card bottom so buttons
+                        line up across a row even though the descriptions
+                        differ in length; pt-6 keeps a minimum gap. */}
+                    <div className="mt-auto pt-6">
+                      <button
+                        type="button"
+                        onClick={() => addToCart(p)}
+                        className="btn-primary w-full justify-center md:text-sm text-sm md:px-6 md:py-4"
+                      >
+                        {added === p.id ? "Added ✓" : "Add to cart"}
+                      </button>
+                    </div>
                   </div>
                 </article>
               );
@@ -166,8 +190,8 @@ const Shop = () => {
           </div>
 
           <p className="font-paragraph text-sm text-ink/50 text-center mt-10">
-            Showing {visible.length} of {products.length} packs. Orders are taken
-            on appukaju.com.
+            Showing {visible.length} of {products.length} packs. Free delivery on
+            every order.
           </p>
         </div>
       </section>

@@ -60,10 +60,8 @@ const Footer = () => {
         className="footer-pour"
       />
 
-      <div className="relative z-10 wrap md:pt-24 pt-16">
-        <h2 className="footer-hash">#AppuKaju</h2>
-
-        <div className="flex-center gap-4 md:mt-10 mt-8">
+      <div className="relative z-10 wrap md:pt-40 pt-28">
+        <div className="flex-center gap-4">
           <a
             href={company.instagram}
             target="_blank"

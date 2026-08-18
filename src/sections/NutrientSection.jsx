@@ -99,32 +99,29 @@ const NutrientSection = () => {
       <div className="nutrition-fade" aria-hidden="true" />
 
       <div className="relative z-10 wrap min-h-dvh flex flex-col justify-between md:pt-36 pt-28 md:pb-12 pb-10">
-        <div className="flex md:flex-row flex-col md:items-start justify-between gap-8">
-          <div>
-            <div className="overflow-hidden">
-              <h2 className="nutrient-title general-title text-ink">
-                Good for you
-              </h2>
-            </div>
+        <div>
+          <div className="overflow-hidden">
+            <h2 className="nutrient-title general-title text-ink">
+              Good for you
+            </h2>
+          </div>
 
-            <div className="nutrition-text-scroll inline-block border-[6px] border-cream mt-3 rotate-[-2deg]">
-              <div className="bg-leaf md:px-5 px-3 md:pb-3 pb-2 pt-1">
-                <p className="text-cream font-bold uppercase md:text-6xl text-3xl leading-none tracking-tight">
-                  Naturally
-                </p>
-              </div>
+          <div className="nutrition-text-scroll inline-block border-[6px] border-cream mt-3 rotate-[-2deg]">
+            <div className="bg-leaf md:px-5 px-3 md:pb-3 pb-2 pt-1">
+              <p className="text-cream font-bold uppercase md:text-6xl text-3xl leading-none tracking-tight">
+                Naturally
+              </p>
             </div>
           </div>
 
-          {/* White bold, on a navy panel. Plain white over the photograph
-              measured 2.17:1 contrast; the panel takes it well past 4.5:1
-              while keeping the text genuinely white and bold. */}
-          <div className="nutrient-note md:max-w-sm max-w-md md:mt-3">
-            <p className="font-paragraph text-cream font-bold md:text-lg leading-relaxed">
-              Cashews carry protein, healthy fats and a spread of minerals most
-              snacks simply do not — which is the whole reason we sell them.
-            </p>
-          </div>
+          {/* Runs on as a second line of headline copy — same face and colour
+              as the title above it. White was the original intent, but the
+              photograph measures 0.73–0.81 luminance right here, which puts
+              white at 1.29:1; navy lands at ~11:1 with nothing behind it. */}
+          <p className="nutrient-note">
+            Cashews carry protein, healthy fats and a spread of minerals most
+            snacks simply do not — which is the whole reason we sell them.
+          </p>
         </div>
 
         <div>
