@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { company, navLinks } from "../constants";
+import { company, navLinks, legalLinks } from "../constants";
 
 const Instagram = (props) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" {...props}>
@@ -129,6 +129,19 @@ const Footer = () => {
                     >
                       {e}
                     </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="eyebrow text-gold mb-4">Legal</h3>
+              <ul className="flex flex-col gap-2.5 font-paragraph text-cream/75">
+                {legalLinks.map((l) => (
+                  <li key={l.to}>
+                    <Link to={l.to} className="hover:text-cream transition-colors">
+                      {l.label}
+                    </Link>
                   </li>
                 ))}
               </ul>

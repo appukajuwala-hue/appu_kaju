@@ -7,3 +7,7 @@ dist-ssr
 npm-debug.log*
 
 .vercel
+
+# Secrets: *.local already covers .env.local, but a bare .env does not.
+.env
+.env*.local

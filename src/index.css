@@ -510,8 +510,49 @@ body::-webkit-scrollbar-thumb {
     @apply block font-paragraph text-xs uppercase tracking-widest text-ink/60 mb-2;
   }
 
-  .demo-notice {
+  /* Amber: something the reader must not miss — test-mode orders, and the
+     "you have paid but we could not confirm it" case on checkout. */
+  .notice-warn {
     @apply rounded-2xl border-2 border-gold bg-gold/15 text-ink md:px-6 px-5 md:py-5 py-4 mt-6;
+  }
+
+  /* Blue: reassurance rather than warning — who handles the card and where it
+     goes. Same geometry so the two read as one family. */
+  .notice-info {
+    @apply rounded-2xl border-2 border-royal/30 bg-royal/10 text-ink md:px-6 px-5 md:py-5 py-4 mt-6;
+  }
+
+  /* Long-form legal copy. Styling the elements once here keeps the four policy
+     pages as readable prose instead of walls of className. */
+  .policy-prose {
+    h2 {
+      @apply text-2xl font-bold uppercase tracking-tight text-ink md:mt-12 mt-10 mb-4;
+    }
+    h2:first-of-type {
+      @apply mt-0;
+    }
+    p {
+      @apply font-paragraph text-ink/75 leading-relaxed mb-4;
+    }
+    ul {
+      @apply list-disc pl-5 flex flex-col gap-2 mb-4;
+    }
+    li {
+      @apply font-paragraph text-ink/75 leading-relaxed pl-1;
+    }
+    li::marker {
+      color: var(--color-gold);
+    }
+    a {
+      @apply text-royal underline underline-offset-4 hover:text-navy;
+    }
+    strong {
+      @apply font-bold text-ink;
+    }
+  }
+
+  .policy-updated {
+    @apply font-paragraph text-xs uppercase tracking-widest text-ink/45 border-b-2 border-ink/10 pb-5 mb-10;
   }
 
   .payment-error {

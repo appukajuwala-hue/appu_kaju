@@ -1,122 +1,208 @@
 /**
- * PAYMENT SEAM — the only file that has to change to start taking real money.
- * ===========================================================================
+ * PAYMENT — Razorpay Checkout.
  *
- * Right now this SIMULATES a payment. Nothing is charged, no card details leave
- * the page, and nothing is stored. The checkout UI says so on screen, and it
- * must keep saying so until this file is replaced.
+ * This file runs in the browser, so it holds nothing secret. The account secret
+ * lives only in the two serverless functions under api/, which is what keeps a
+ * stranger from minting orders against the merchant account.
  *
- * Why it is faked: a real gateway needs a server. Creating an order and
- * verifying the payment signature both require the Razorpay `key_secret`, and
- * anything shipped in this bundle is readable by anyone who opens devtools —
- * a leaked secret lets a stranger mint orders against the merchant account.
- * So the secret half has to live somewhere the browser cannot see.
+ * Card details are typed into Razorpay's own iframe and never touch this origin.
+ * That is deliberate and load-bearing: it is the reason this site is out of PCI
+ * scope, and the reason there is no card field anywhere in the codebase.
  *
- * ---------------------------------------------------------------------------
- * TO GO LIVE WITH RAZORPAY
- * ---------------------------------------------------------------------------
- * 1. Add two serverless endpoints (Vercel `api/`, Netlify functions, or any
- *    small Node server). They hold RAZORPAY_KEY_SECRET as an env var:
- *
- *      POST /api/create-order   { amount, currency, receipt }
- *        -> razorpay.orders.create(...)          returns { id: "order_..." }
- *
- *      POST /api/verify         { razorpay_order_id, razorpay_payment_id,
- *                                 razorpay_signature }
- *        -> HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
- *           compared against razorpay_signature   returns { ok: true }
- *
- *    Never trust the client's word that a payment succeeded — step 2's callback
- *    is attacker-controllable. Only /api/verify decides.
- *
- * 2. Load Razorpay's checkout.js and replace the body of processPayment below:
- *
- *      const { id } = await fetch("/api/create-order", { ... }).then(r => r.json());
- *      const result = await new Promise((resolve) => {
- *        new window.Razorpay({
- *          key: import.meta.env.VITE_RAZORPAY_KEY_ID,   // publishable, safe
- *          order_id: id,
- *          amount: Math.round(amount * 100),            // paise, integer
- *          currency,
- *          name: "Appu Kaju",
- *          prefill: { name: customer.name, email: customer.email,
- *                     contact: customer.phone },
- *          handler: resolve,
- *          modal: { ondismiss: () => resolve(null) },
- *        }).open();
- *      });
- *      if (!result) return { ok: false, error: "Payment was cancelled." };
- *      const verified = await fetch("/api/verify", { ... }).then(r => r.json());
- *      return verified.ok
- *        ? { ok: true, paymentId: result.razorpay_payment_id }
- *        : { ok: false, error: "We could not verify that payment." };
- *
- * 3. Delete the card fields from Checkout.jsx — Razorpay collects them in its
- *    own iframe, which is what keeps this site out of PCI scope. Keep the
- *    address fields. Then remove the demo notices.
- *
- * The return shape below is already what step 2 produces, so Checkout.jsx does
- * not change.
+ * The flow:
+ *   1. POST /api/create-order   — the server prices the cart and creates the
+ *                                 Razorpay order. The browser never names a price.
+ *   2. Razorpay Checkout opens  — the customer pays inside Razorpay's iframe.
+ *   3. POST /api/verify         — the server checks the signature against the
+ *                                 account secret and confirms the payment with
+ *                                 Razorpay. Nothing here is trusted; step 3
+ *                                 decides whether the sale happened.
  */
 
-/** Test card the demo accepts. Shown in the UI so the flow is walkable. */
-export const DEMO_CARD = "4242 4242 4242 4242";
+const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 
-const digitsOnly = (s) => (s || "").replace(/\D/g, "");
+let scriptPromise = null;
 
-/** Standard Luhn checksum — the same check a real gateway runs client-side. */
-export const luhnValid = (cardNumber) => {
-  const digits = digitsOnly(cardNumber);
-  if (digits.length < 13 || digits.length > 19) return false;
-  let sum = 0;
-  let double = false;
-  for (let i = digits.length - 1; i >= 0; i -= 1) {
-    let d = Number(digits[i]);
-    if (double) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-    double = !double;
-  }
-  return sum % 10 === 0;
-};
+/** Injects Razorpay's checkout script once, reusing the promise thereafter. */
+const loadRazorpay = () => {
+  if (scriptPromise) return scriptPromise;
 
-/** Accepts MM/YY or MM/YYYY and requires the month to be now or later. */
-export const expiryValid = (value) => {
-  const m = /^(\d{2})\s*\/\s*(\d{2}|\d{4})$/.exec((value || "").trim());
-  if (!m) return false;
-  const month = Number(m[1]);
-  if (month < 1 || month > 12) return false;
-  const year = m[2].length === 2 ? 2000 + Number(m[2]) : Number(m[2]);
-  const now = new Date();
-  const endOfMonth = new Date(year, month, 0, 23, 59, 59);
-  return endOfMonth >= now;
+  scriptPromise = new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+
+    const script = document.createElement("script");
+    script.src = CHECKOUT_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      // Ad blockers and filtered DNS block this domain routinely. Without an
+      // explicit rejection the pay button just spins forever, which reads as a
+      // broken site rather than a blocked script.
+      scriptPromise = null;
+      reject(new Error("blocked"));
+    };
+    document.head.appendChild(script);
+  });
+
+  return scriptPromise;
 };
 
 /**
- * @returns {Promise<{ok: true, paymentId: string} | {ok: false, error: string}>}
+ * POSTs JSON and insists on JSON back.
+ *
+ * vercel.json rewrites everything unmatched to /index.html, so a missing or
+ * misnamed api route answers 200 with a page of HTML. Parsing that yields an
+ * incomprehensible syntax error, so check the content type and say something
+ * useful instead.
  */
-export async function processPayment({ amount, currency = "INR", card }) {
-  if (!(Number.isFinite(amount) && amount > 0)) {
-    return { ok: false, error: "That order total does not look right." };
-  }
-  if (currency !== "INR") {
-    return { ok: false, error: `We can only take payments in INR right now.` };
-  }
-  if (!luhnValid(card?.number)) {
-    return { ok: false, error: "That card number is not valid." };
-  }
-  if (!expiryValid(card?.expiry)) {
-    return { ok: false, error: "That expiry date has passed." };
-  }
-  if (digitsOnly(card?.cvc).length < 3) {
-    return { ok: false, error: "Check the security code on the back." };
+const postJson = async (url, payload) => {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const isJson = (res.headers.get("content-type") || "").includes("application/json");
+  if (!isJson) {
+    throw new Error("The payment service is not reachable right now.");
   }
 
-  // Stand in for gateway latency so the pending state is actually visible.
-  await new Promise((r) => setTimeout(r, 1400));
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error || "That payment could not be started.");
+  return body;
+};
 
-  const ref = Math.random().toString(36).slice(2, 10);
-  return { ok: true, paymentId: `demo_pay_${ref}` };
+/**
+ * Runs a whole purchase.
+ *
+ * @param {object}   arg
+ * @param {Array}    arg.items          [{ id, qty }] — ids and counts only.
+ * @param {object}   arg.customer       Delivery details, re-validated server-side.
+ * @param {number}   arg.expectedAmount Rupee total currently on screen.
+ * @param {Function} [arg.onStage]      Called with "opening" | "confirming" so
+ *                                      the button can say what is happening.
+ *                                      "confirming" matters: it covers the gap
+ *                                      after the modal closes while the server
+ *                                      checks the signature.
+ *
+ * @returns {Promise<
+ *   { ok: true,  paymentId: string, receipt: string, amount: number, testMode: boolean } |
+ *   { ok: false, error: string, cancelled?: boolean, paid?: boolean, paymentId?: string }
+ * >}
+ *
+ * `cancelled` means the customer closed the modal — not an error, and the UI
+ * should say nothing. `paid: true` means the money left their account but the
+ * confirmation failed, which needs very different wording; see Checkout.jsx.
+ */
+export async function processPayment({ items, customer, expectedAmount, onStage }) {
+  onStage?.("opening");
+
+  // Fetch the script and create the order at the same time. The catch keeps a
+  // script failure from surfacing as an unhandled rejection while we wait on
+  // the order; the real error still arrives at the `await` below.
+  const scriptReady = loadRazorpay();
+  scriptReady.catch(() => {});
+
+  let order;
+  try {
+    order = await postJson("/api/create-order", { items, customer });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  try {
+    await scriptReady;
+  } catch {
+    return {
+      ok: false,
+      error:
+        "We could not load the payment window. An ad blocker or network filter " +
+        "may be blocking it — try disabling it, or call us to order by phone.",
+    };
+  }
+
+  // The server priced the cart independently. If that disagrees with the total
+  // the customer is looking at, they are on a stale build — stop rather than
+  // charge a price they were never shown.
+  if (Number(order.amount) !== Number(expectedAmount)) {
+    return {
+      ok: false,
+      error: "Prices have changed since you added these. Please refresh and try again.",
+    };
+  }
+
+  const outcome = await new Promise((resolve) => {
+    const rzp = new window.Razorpay({
+      key: order.keyId,
+      order_id: order.orderId,
+      amount: order.amount * 100,
+      currency: order.currency,
+      name: "Appu Kaju",
+      description: `Order ${order.receipt}`,
+      image: "/images/logo.png",
+      prefill: {
+        name: customer.name,
+        email: customer.email,
+        contact: customer.phone,
+      },
+      notes: { receipt: order.receipt },
+      theme: { color: "#12386E" },
+      handler: (response) => resolve({ type: "paid", response }),
+      modal: {
+        // Closing the window is a decision, not a failure.
+        ondismiss: () => resolve({ type: "cancelled" }),
+      },
+    });
+
+    // Without this a declined card just closes the modal and looks like the
+    // customer changed their mind.
+    rzp.on("payment.failed", (event) =>
+      resolve({ type: "failed", error: event?.error })
+    );
+
+    rzp.open();
+  });
+
+  if (outcome.type === "cancelled") {
+    return { ok: false, cancelled: true, error: "" };
+  }
+
+  if (outcome.type === "failed") {
+    return {
+      ok: false,
+      error:
+        outcome.error?.description ||
+        "That payment did not go through. No money has been taken.",
+    };
+  }
+
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = outcome.response;
+  onStage?.("confirming");
+
+  try {
+    const verified = await postJson("/api/verify", {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    });
+    if (!verified.ok) throw new Error("unverified");
+
+    return {
+      ok: true,
+      paymentId: verified.paymentId,
+      receipt: verified.receipt,
+      amount: verified.amount,
+      testMode: Boolean(verified.testMode),
+    };
+  } catch {
+    // The charge succeeded but we could not confirm it. Flagging `paid` lets
+    // the UI warn them NOT to pay again — telling an already-charged customer
+    // to retry is the worst thing this code could cause.
+    return {
+      ok: false,
+      paid: true,
+      paymentId: razorpay_payment_id,
+      error: "unverified",
+    };
+  }
 }
