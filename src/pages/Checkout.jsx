@@ -3,10 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import Seo from "../components/Seo";
 import PageHeader from "../components/PageHeader";
 import { useCart } from "../cart/context";
-import { processPayment, DEMO_CARD } from "../cart/payment";
-import { makeOrderId, saveOrder } from "../cart/orders";
+import { processPayment } from "../cart/payment";
+import { saveOrder } from "../cart/orders";
 import { company } from "../constants";
 
+// No card fields. Razorpay collects those inside its own iframe, which is what
+// keeps this site out of PCI scope — see src/cart/payment.js.
 const EMPTY = {
   name: "",
   email: "",
@@ -15,9 +17,11 @@ const EMPTY = {
   city: "",
   state: "",
   pin: "",
-  cardNumber: "",
-  expiry: "",
-  cvc: "",
+};
+
+const LABELS = {
+  opening: "Opening payment…",
+  confirming: "Confirming payment…",
 };
 
 const Checkout = () => {
@@ -26,8 +30,8 @@ const Checkout = () => {
 
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
-  const [pending, setPending] = useState(false);
-  const [failure, setFailure] = useState("");
+  const [stage, setStage] = useState("");
+  const [failure, setFailure] = useState(null);
 
   // Set the instant an order succeeds. Placing an order empties the cart, and
   // an empty cart is exactly what the redirect below watches for — without this
@@ -48,7 +52,7 @@ const Checkout = () => {
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     setErrors((x) => ({ ...x, [k]: undefined }));
-    setFailure("");
+    setFailure(null);
   };
 
   const validate = () => {
@@ -65,11 +69,10 @@ const Checkout = () => {
     if (!form.state.trim()) next.state = "Which state?";
     if (!/^\d{6}$/.test(form.pin.trim()))
       next.pin = "Indian PIN codes are 6 digits.";
-    if (!form.cardNumber.trim()) next.cardNumber = "Enter the card number.";
-    if (!form.expiry.trim()) next.expiry = "Enter the expiry as MM/YY.";
-    if (!form.cvc.trim()) next.cvc = "Enter the security code.";
     return next;
   };
+
+  const pending = Boolean(stage);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,33 +82,49 @@ const Checkout = () => {
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    setPending(true);
-    setFailure("");
+    setFailure(null);
+
+    const customer = Object.fromEntries(
+      Object.entries(form).map(([k, v]) => [k, v.trim()])
+    );
 
     const result = await processPayment({
-      amount: subtotal,
-      currency: "INR",
-      card: {
-        number: form.cardNumber,
-        expiry: form.expiry,
-        cvc: form.cvc,
-      },
+      items: items.map((i) => ({ id: i.id, qty: i.qty })),
+      customer,
+      expectedAmount: subtotal,
+      onStage: setStage,
     });
 
     if (!result.ok) {
-      setPending(false);
-      setFailure(result.error);
+      setStage("");
+      // Closing the Razorpay window is a decision, not a failure. Saying
+      // nothing is the correct response.
+      if (result.cancelled) return;
+
+      if (result.paid) {
+        setFailure({
+          paid: true,
+          text:
+            `Your payment went through, but we could not confirm it automatically. ` +
+            `Please do not pay again — call us on ${company.phone} quoting ` +
+            `reference ${result.paymentId} and we will sort it out.`,
+        });
+        return;
+      }
+
+      setFailure({ text: result.error });
       return;
     }
 
     // Snapshot the priced lines — the cart is about to be emptied, and the
     // confirmation must show what was actually bought at what it actually cost.
+    // The id is Razorpay's receipt, so this number matches the dashboard.
     const order = saveOrder({
-      id: makeOrderId(),
+      id: result.receipt,
       placedAt: new Date().toISOString(),
       paymentId: result.paymentId,
-      demo: true,
-      total: subtotal,
+      testMode: result.testMode,
+      total: result.amount,
       items: items.map((i) => ({
         id: i.id,
         brand: i.brand,
@@ -115,15 +134,7 @@ const Checkout = () => {
         lineTotal: i.lineTotal,
         image: i.image,
       })),
-      customer: {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        address: form.address.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        pin: form.pin.trim(),
-      },
+      customer,
     });
 
     placed.current = true;
@@ -171,6 +182,7 @@ const Checkout = () => {
                 </label>
                 <input
                   id="co-name"
+                  autoComplete="name"
                   value={form.name}
                   onChange={set("name")}
                   aria-invalid={!!errors.name}
@@ -187,6 +199,7 @@ const Checkout = () => {
                 <input
                   id="co-email"
                   type="email"
+                  autoComplete="email"
                   value={form.email}
                   onChange={set("email")}
                   aria-invalid={!!errors.email}
@@ -204,6 +217,7 @@ const Checkout = () => {
                   id="co-phone"
                   type="tel"
                   inputMode="numeric"
+                  autoComplete="tel"
                   value={form.phone}
                   onChange={set("phone")}
                   aria-invalid={!!errors.phone}
@@ -219,6 +233,7 @@ const Checkout = () => {
                 </label>
                 <input
                   id="co-address"
+                  autoComplete="street-address"
                   value={form.address}
                   onChange={set("address")}
                   placeholder="House / flat, street, area"
@@ -235,6 +250,7 @@ const Checkout = () => {
                 </label>
                 <input
                   id="co-city"
+                  autoComplete="address-level2"
                   value={form.city}
                   onChange={set("city")}
                   aria-invalid={!!errors.city}
@@ -250,6 +266,7 @@ const Checkout = () => {
                 </label>
                 <input
                   id="co-state"
+                  autoComplete="address-level1"
                   value={form.state}
                   onChange={set("state")}
                   aria-invalid={!!errors.state}
@@ -267,6 +284,7 @@ const Checkout = () => {
                   id="co-pin"
                   inputMode="numeric"
                   maxLength={6}
+                  autoComplete="postal-code"
                   value={form.pin}
                   onChange={set("pin")}
                   aria-invalid={!!errors.pin}
@@ -280,77 +298,21 @@ const Checkout = () => {
             {/* ------------------------------------------------ payment */}
             <h2 className="section-title text-ink md:mt-14 mt-10">Payment</h2>
 
-            <div className="demo-notice" role="note">
-              <p className="font-bold uppercase tracking-wide text-sm">
-                Demo checkout
+            <div className="notice-info" role="note">
+              <p className="font-paragraph text-sm leading-relaxed">
+                Card, UPI, netbanking and wallets are handled by{" "}
+                <strong className="font-bold">Razorpay</strong>, which opens in a
+                secure window when you continue. Your card details go straight to
+                them — they never reach this website, and we never store them.
               </p>
-              <p className="font-paragraph text-sm mt-1.5 leading-relaxed">
-                No real payment is taken and no card details are stored or sent
-                anywhere. Use the test card{" "}
-                <strong className="font-bold whitespace-nowrap">{DEMO_CARD}</strong>{" "}
-                with any future expiry and any 3-digit code.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-5 mt-6">
-              <div className="sm:col-span-2">
-                <label htmlFor="co-card" className="checkout-label">
-                  Card number
-                </label>
-                <input
-                  id="co-card"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder={DEMO_CARD}
-                  value={form.cardNumber}
-                  onChange={set("cardNumber")}
-                  aria-invalid={!!errors.cardNumber}
-                  aria-describedby={errors.cardNumber ? "co-card-err" : undefined}
-                  className={field}
-                />
-                <Err id="co-card-err" msg={errors.cardNumber} />
-              </div>
-
-              <div>
-                <label htmlFor="co-exp" className="checkout-label">
-                  Expiry
-                </label>
-                <input
-                  id="co-exp"
-                  placeholder="MM/YY"
-                  autoComplete="off"
-                  value={form.expiry}
-                  onChange={set("expiry")}
-                  aria-invalid={!!errors.expiry}
-                  aria-describedby={errors.expiry ? "co-exp-err" : undefined}
-                  className={field}
-                />
-                <Err id="co-exp-err" msg={errors.expiry} />
-              </div>
-
-              <div>
-                <label htmlFor="co-cvc" className="checkout-label">
-                  Security code
-                </label>
-                <input
-                  id="co-cvc"
-                  inputMode="numeric"
-                  maxLength={4}
-                  autoComplete="off"
-                  placeholder="123"
-                  value={form.cvc}
-                  onChange={set("cvc")}
-                  aria-invalid={!!errors.cvc}
-                  aria-describedby={errors.cvc ? "co-cvc-err" : undefined}
-                  className={field}
-                />
-                <Err id="co-cvc-err" msg={errors.cvc} />
-              </div>
             </div>
 
             {failure && (
-              <p role="alert" className="payment-error">
-                {failure}
+              <p
+                role="alert"
+                className={failure.paid ? "notice-warn mt-6" : "payment-error"}
+              >
+                {failure.text}
               </p>
             )}
 
@@ -361,7 +323,7 @@ const Checkout = () => {
               className="btn-primary w-full justify-center mt-8 disabled:opacity-60 disabled:hover:scale-100"
             >
               {pending
-                ? "Placing your order…"
+                ? LABELS[stage]
                 : `Pay ₹${subtotal.toLocaleString("en-IN")}`}
             </button>
 

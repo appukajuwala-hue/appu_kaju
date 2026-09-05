@@ -84,14 +84,14 @@ const OrderConfirmation = () => {
               </div>
             </dl>
 
-            {order.demo && (
-              <div className="demo-notice mt-8" role="note">
+            {order.testMode && (
+              <div className="notice-warn mt-8" role="note">
                 <p className="font-bold uppercase tracking-wide text-sm">
-                  Demo order
+                  Test payment
                 </p>
                 <p className="font-paragraph text-sm mt-1.5 leading-relaxed">
-                  This checkout is a demonstration. No payment was taken, no card
-                  details were stored, and nothing will be dispatched.
+                  This order went through Razorpay in test mode. No real money
+                  moved and nothing will be dispatched.
                 </p>
               </div>
             )}

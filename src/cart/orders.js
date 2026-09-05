@@ -1,23 +1,18 @@
 /**
  * Order records, kept in localStorage.
  *
- * There is no backend, so the confirmation page has nowhere else to read an
- * order back from. This is enough for the order screen to survive a refresh or
- * a shared-with-yourself link on the same browser — it is NOT a record of
- * truth, and it disappears if the visitor clears site data. When payment.js
- * moves to Razorpay, orders should be written server-side and this file becomes
- * a cache at most.
+ * This is a receipt for the customer, NOT the record of truth. The authoritative
+ * copy of every order lives in the Razorpay dashboard (the delivery address
+ * rides along in the payment's notes) and in the order email. What is kept here
+ * only lets /order/:id survive a refresh on the same browser; it disappears if
+ * the visitor clears site data.
+ *
+ * Order ids are minted server-side in api/create-order.js and used as the
+ * Razorpay receipt, so the number on this screen is the number in the dashboard.
  */
 
 const STORAGE_KEY = "appu-kaju-orders-v1";
 const MAX_ORDERS = 20;
-
-/** e.g. APK-K2P9XQ — short enough to read out over the phone. */
-export const makeOrderId = () => {
-  const stamp = Date.now().toString(36).slice(-4);
-  const rand = Math.random().toString(36).slice(2, 6);
-  return `APK-${(stamp + rand).toUpperCase()}`;
-};
 
 const readAll = () => {
   try {

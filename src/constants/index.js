@@ -31,6 +31,16 @@ export const navLinks = [
   { label: "Contact", to: "/contact" },
 ];
 
+// Footer-only. Kept out of navLinks so the main nav stays six items, but these
+// must be reachable from every page — Razorpay requires them published before
+// it will activate a live merchant account.
+export const legalLinks = [
+  { label: "Terms & conditions", to: "/terms" },
+  { label: "Privacy policy", to: "/privacy" },
+  { label: "Refunds & cancellations", to: "/refunds" },
+  { label: "Shipping policy", to: "/shipping" },
+];
+
 export const stats = [
   { value: 1998, label: "Serving India since", format: "plain" },
   { value: 8, label: "Pack sizes in the range", suffix: "" },
