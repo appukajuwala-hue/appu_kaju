@@ -1,0 +1,100 @@
+# Builds the site and ships it to AWS on every push to main.
+#
+# Authentication uses GitHub's OIDC provider, not stored AWS access keys. This
+# repository is public, and an OIDC role means there is no long-lived AWS
+# credential in existence to leak — GitHub mints a short-lived token per run and
+# AWS trusts it only for this one repository. See infra/README.md for the role.
+#
+# Required repository variables (Settings -> Secrets and variables -> Actions):
+#   vars.AWS_REGION              e.g. ap-south-1
+#   vars.S3_BUCKET               the static site bucket
+#   vars.LAMBDA_FUNCTION         the api function name
+#   vars.CLOUDFRONT_DISTRIBUTION the distribution id
+#   secrets.AWS_ROLE_ARN         arn:aws:iam::<account>:role/<role>
+
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-run a deploy from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+# Never let two deploys race each other onto the same bucket.
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # required to request the OIDC token
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Lambda runtime, so the build and the function agree.
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Fail before touching AWS rather than half-deploying a broken build.
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Assume AWS role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Three passes, because the right cache lifetime differs per asset.
+      # Vite fingerprints everything in assets/, so those can be cached forever;
+      # images and videos keep their filenames across builds, so they get a week
+      # and rely on the invalidation below; index.html must never be cached or
+      # visitors keep loading the previous build's asset names.
+      - name: Upload static files
+        env:
+          BUCKET: ${{ vars.S3_BUCKET }}
+        run: |
+          aws s3 sync dist/ "s3://$BUCKET" --delete \
+            --exclude "index.html" --exclude "assets/*" \
+            --cache-control "public,max-age=604800"
+          aws s3 sync dist/assets/ "s3://$BUCKET/assets/" --delete \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp dist/index.html "s3://$BUCKET/index.html" \
+            --cache-control "no-cache"
+
+      # Layout, dependencies and the "type": "module" shim are all explained
+      # in infra/package-lambda.sh, which the manual setup uses too.
+      - name: Package the Lambda
+        run: |
+          chmod +x infra/package-lambda.sh
+          infra/package-lambda.sh
+
+      - name: Deploy the Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ vars.LAMBDA_FUNCTION }}" \
+            --zip-file fileb://build/fn.zip \
+            --no-cli-pager
+          aws lambda wait function-updated \
+            --function-name "${{ vars.LAMBDA_FUNCTION }}"
+
+      # One wildcard counts as a single path against the 1,000 free
+      # invalidation paths per month, so this stays free at any sane cadence.
+      - name: Invalidate the CDN cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION }}" \
+            --paths "/*" \
+            --no-cli-pager

@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublishSiteToS3",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::__BUCKET__/*"
+    },
+    {
+      "Sid": "ListBucketForSync",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::__BUCKET__"
+    },
+    {
+      "Sid": "UpdateApiFunction",
+      "Effect": "Allow",
+      "Action": ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"],
+      "Resource": "arn:aws:lambda:__REGION__:__ACCOUNT_ID__:function:__LAMBDA_FUNCTION__"
+    },
+    {
+      "Sid": "ClearCdnCache",
+      "Effect": "Allow",
+      "Action": "cloudfront:CreateInvalidation",
+      "Resource": "arn:aws:cloudfront::__ACCOUNT_ID__:distribution/__DISTRIBUTION_ID__"
+    }
+  ]
+}
