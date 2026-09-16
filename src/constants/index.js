@@ -1,6 +1,32 @@
 // Single source of truth for all site content.
 // Product range, pricing and company details as of 2026-08.
 
+/**
+ * The origin the site is served from, with no trailing slash.
+ *
+ * THIS IS THE ONLY PLACE THE DOMAIN IS WRITTEN. Canonical tags, Open Graph
+ * urls, the sitemap and the JSON-LD all derive from it, and vite.config.js
+ * substitutes it into index.html's static meta tags at build time — so moving
+ * the site, or settling on `www`, is a one-line change here.
+ *
+ * Open Graph and canonical both require absolute urls; a relative path is
+ * silently ignored, which is why WhatsApp and Facebook previews need this at
+ * all rather than just a path to the logo.
+ */
+export const SITE_URL = "https://appukaju.com";
+
+/**
+ * Absolute url for a router path. `absoluteUrl("/shop")` -> the canonical.
+ *
+ * The root keeps its slash (matching the static tag in index.html, so the home
+ * page never claims two different canonicals); every other path drops a
+ * trailing one, so /shop and /shop/ cannot both be canonical.
+ */
+export const absoluteUrl = (path = "/") => {
+  const withSlash = path.startsWith("/") ? path : `/${path}`;
+  return `${SITE_URL}${withSlash === "/" ? "/" : withSlash.replace(/\/+$/, "")}`;
+};
+
 export const company = {
   name: "Appu Kaju",
   founded: 1998,
@@ -13,7 +39,24 @@ export const company = {
   vision:
     "To become India's leading cashew brand, recognised for quality and innovation while promoting healthier lifestyles for generations to come.",
   factory: "Andhra Pradesh",
-  shopAddress: "L.D.A Shop No. 1, City Station Road, Subhash Marg, Lucknow",
+  /**
+   * The shop address in parts, because search engines want it structured —
+   * see src/lib/structuredData.js. `shopAddress` below is derived from these
+   * so the prose on /contact and the machine-readable copy cannot disagree.
+   *
+   * No postalCode: nobody has confirmed the shop's PIN, and an invented one is
+   * worse than an absent one — it would put the shop on the wrong part of the
+   * map in local search results.
+   */
+  postalAddress: {
+    street: "L.D.A Shop No. 1, City Station Road, Subhash Marg",
+    locality: "Lucknow",
+    region: "UP",
+    country: "IN",
+  },
+  get shopAddress() {
+    return `${this.postalAddress.street}, ${this.postalAddress.locality}`;
+  },
   phone: "+91 9616224108",
   phoneHref: "tel:+919616224108",
   emails: ["appukaju@gmail.com", "appukajuwala@gmail.com"],
@@ -39,6 +82,35 @@ export const legalLinks = [
   { label: "Privacy policy", to: "/privacy" },
   { label: "Refunds & cancellations", to: "/refunds" },
   { label: "Shipping policy", to: "/shipping" },
+];
+
+/**
+ * The indexable routes, and how much each matters.
+ *
+ * Derived from navLinks and legalLinks rather than listed again, so a page
+ * added to the navigation cannot be forgotten in the sitemap. The three routes
+ * App.jsx defines that are NOT here are excluded on purpose, and each carries
+ * `noindex` in its own <Seo>:
+ *
+ *   /checkout       empty unless a cart exists — it redirects to /shop
+ *   /order/:orderId one customer's address and phone number
+ *   *               the 404
+ *
+ * Priority is relative within the site, not an absolute ranking signal: the
+ * shop is what the business needs found, the legal pages exist because
+ * Razorpay requires them published, not because anyone searches for them.
+ */
+export const sitemapRoutes = [
+  ...navLinks.map(({ to }) => ({
+    path: to,
+    priority: to === "/" ? "1.0" : to === "/shop" ? "0.9" : "0.7",
+    changefreq: to === "/shop" ? "weekly" : "monthly",
+  })),
+  ...legalLinks.map(({ to }) => ({
+    path: to,
+    priority: "0.3",
+    changefreq: "yearly",
+  })),
 ];
 
 export const stats = [

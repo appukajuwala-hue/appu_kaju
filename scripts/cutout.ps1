@@ -12,6 +12,11 @@
 #     the kernel while leaving the real background untouched.
 #
 # Run against the *-original.png backups; safe to re-run.
+#
+# The originals live in source-images/, NOT in public/. Anything under public/
+# is copied verbatim into every build, and shipping 1.3 MB of studio-white
+# source art to every visitor helped nobody. This script reads from there and
+# writes the cut-out result into public/images/.
 
 Add-Type -AssemblyName System.Drawing
 
@@ -228,12 +233,18 @@ public static class Cutout
 
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
 
-$dir = "C:\Users\Asus\Downloads\Venky\new\appu_kaju_2.0\public\images"
+# Resolved from this script's own location, so the repo can live anywhere.
+$root    = Split-Path -Parent $PSScriptRoot
+$dir     = Join-Path $root "public\images"
+$origDir = Join-Path $root "source-images"
+
+if (-not (Test-Path $origDir)) { New-Item -ItemType Directory $origDir | Out-Null }
+
 $packs = @("appu-kaju", "kuber-kaju", "rimmee-kaju", "rimmee-kaju-10kg")
 
 foreach ($p in $packs) {
     $target = Join-Path $dir "$p.png"
-    $backup = Join-Path $dir "$p-original.png"
+    $backup = Join-Path $origDir "$p-original.png"
     if (-not (Test-Path $backup)) { Copy-Item $target $backup }
 
     $tmp = Join-Path $env:TEMP "$p-cut.png"

@@ -73,8 +73,15 @@ const Privacy = () => (
     <h2>Cookies and tracking</h2>
     <p>
       This site sets no advertising or analytics cookies and embeds no
-      third-party trackers. Razorpay&rsquo;s payment window sets its own cookies
-      when it opens, which are necessary for the payment to work.
+      third-party trackers. Our fonts, images and video are served from this
+      site rather than from a content network, so simply reading these pages
+      does not report your visit to anyone else.
+    </p>
+    <p>
+      There is one exception, and it only applies if you buy something:
+      Razorpay&rsquo;s payment window sets its own cookies when it opens, which
+      are necessary for the payment to work. Nothing on this site contacts
+      Razorpay until you choose to pay.
     </p>
 
     <h2>Your rights</h2>

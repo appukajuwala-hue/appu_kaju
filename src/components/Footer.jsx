@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { company, navLinks, legalLinks } from "../constants";
+import LazyVideo from "./LazyVideo";
 
 const Instagram = (props) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" {...props}>
@@ -49,13 +50,13 @@ const Footer = () => {
       {/* Pour footage, composited with a lighten blend so the black background
           drops away. Masked at the edges so any lift in the source's blacks
           fades out instead of showing as a rectangle. */}
-      <video
+      <LazyVideo
         src="/videos/pour.mp4"
+        poster="/videos/pour-poster.jpg"
         autoPlay
         muted
         loop
         playsInline
-        preload="auto"
         aria-hidden="true"
         className="footer-pour"
       />

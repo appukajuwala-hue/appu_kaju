@@ -4,7 +4,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
 export default [
-  { ignores: ["dist"] },
+  { ignores: ["dist", "build"] },
   {
     files: ["**/*.{js,jsx}"],
     languageOptions: {
@@ -34,7 +34,7 @@ export default [
     // api/ runs on Vercel's Node runtime, not in a browser: `process` and
     // `Buffer` are legitimate there and would otherwise fail no-undef. The
     // React rules above are meaningless for these files.
-    files: ["api/**/*.js", "vite.config.js"],
+    files: ["api/**/*.js", "infra/**/*.js", "vite.config.js"],
     languageOptions: {
       globals: globals.node,
       parserOptions: { ecmaVersion: "latest", sourceType: "module" },
