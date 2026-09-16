@@ -10,7 +10,11 @@ const OrderConfirmation = () => {
   if (!order) {
     return (
       <div>
-        <Seo title="Order not found — Appu Kaju" description="We could not find that order." />
+        <Seo
+          title="Order not found — Appu Kaju"
+          description="We could not find that order."
+          noindex
+        />
         <section className="min-h-[70vh] flex-center md:pt-32 pt-24 md:pb-24 pb-16">
           <div className="wrap max-w-xl text-center">
             <h1 className="section-title text-ink">We can&apos;t find that order</h1>
@@ -35,6 +39,7 @@ const OrderConfirmation = () => {
       <Seo
         title={`Order ${order.id} — Appu Kaju`}
         description="Your Appu Kaju order is confirmed."
+        noindex
       />
 
       <section className="md:pt-40 pt-28 md:pb-24 pb-16">

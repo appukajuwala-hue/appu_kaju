@@ -11,16 +11,61 @@
       content="Appu Kaju has delivered handpicked, 100% natural cashew nuts across India since 1998. Factory in Andhra Pradesh, shop in Lucknow. Appu, Kuber and Rimmee Kaju from 250g to 10kg."
     />
     <meta name="theme-color" content="#2A211B" />
-    <!-- Canonical intentionally omitted until the final domain is decided. -->
+
+    <!--
+      The two faces that render essentially all visible text, fetched in
+      parallel with the stylesheet instead of waiting for the CSS to be parsed
+      and the @font-face rules discovered.
+
+      `crossorigin` is required even though these are same-origin: fonts are
+      always fetched in CORS mode, and a preload without it is treated as a
+      different request from the real one — the file gets downloaded twice and
+      the preload achieves nothing.
+
+      Only the `latin` subsets are preloaded. latin-ext carries accented
+      characters and the rupee sign, and the browser fetches it on demand when
+      it meets one, which is the right trade for 100 KB.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/antonio-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/inter-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <!--
+      %SITE_URL% is substituted at build time from SITE_URL in
+      src/constants/index.js — see the siteUrlHtml plugin in vite.config.js.
+      Do not hardcode the domain here; change it in the constant.
+
+      These are the values a crawler or a link scraper sees before any
+      JavaScript runs. Seo.jsx then rewrites them per route for everything that
+      does run JS. Open Graph ignores relative urls entirely, so og:image being
+      absolute is what makes WhatsApp and Facebook previews render at all.
+    -->
+    <link rel="canonical" href="%SITE_URL%/" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Appu Kaju" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:url" content="%SITE_URL%/" />
     <meta property="og:title" content="Appu Kaju — Finest Cashew Nuts in India Since 1998" />
     <meta
       property="og:description"
       content="Handpicked, vacuum-sealed, 100% natural cashews. Sourced from India's finest farms since 1998."
     />
-    <meta property="og:image" content="/images/logo.png" />
+    <meta property="og:image" content="%SITE_URL%/images/logo.png" />
+    <meta property="og:image:alt" content="Appu Kaju — finest cashews since 1998" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="%SITE_URL%/images/logo.png" />
   </head>
   <body>
     <div id="root"></div>

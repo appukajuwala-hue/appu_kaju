@@ -3,7 +3,7 @@ import Seo from "../components/Seo";
 
 const NotFound = () => (
   <section className="min-h-dvh flex-center bg-cream px-5">
-    <Seo title="Page not found — Appu Kaju" />
+    <Seo title="Page not found — Appu Kaju" noindex />
     <div className="col-center text-center">
       <p className="general-title text-royal/25">404</p>
       <h1 className="section-title text-ink mt-2">

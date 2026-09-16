@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Seo from "../components/Seo";
+import JsonLd from "../components/JsonLd";
+import { productListLd } from "../lib/structuredData";
 import PageHeader from "../components/PageHeader";
 import { gsap, useGSAP, usePrefersReducedMotion } from "../lib/gsap";
 import { useCart } from "../cart/context";
@@ -65,6 +67,10 @@ const Shop = () => {
         title="Shop — Appu Kaju cashew packs from 250g to 10kg"
         description="Eight cashew packs across three grades: Kuber, Appu and Rimmee Kaju. From ₹219 for 250g up to ₹12,000 for 10kg."
       />
+      {/* Prices and availability for all eight packs, so a search result can
+          show the price under the listing. Built from the same catalogue the
+          cards render from — see src/lib/structuredData.js. */}
+      <JsonLd id="products" data={productListLd()} />
 
       <PageHeader
         eyebrow="The range"

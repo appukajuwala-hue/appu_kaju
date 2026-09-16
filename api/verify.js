@@ -21,18 +21,14 @@
  */
 
 import crypto from "node:crypto";
-import { httpError, postOnly, razorpayAuth, razorpayFetch } from "./_lib/orders.js";
-import { parseItemsNote, sendOrderEmails } from "./_lib/email.js";
-
-const CUSTOMER_KEYS = ["name", "email", "phone", "address", "city", "state", "pin"];
-
-/** Constant-time compare that tolerates unequal lengths without throwing. */
-const signatureMatches = (expected, actual) => {
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(String(actual || ""), "utf8");
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-};
+import {
+  httpError,
+  postOnly,
+  razorpayAuth,
+  razorpayLookup,
+  signatureMatches,
+} from "./_lib/orders.js";
+import { fulfilOrder } from "./_lib/fulfil.js";
 
 export default postOnly(async (body, req, res) => {
   const orderId = body.razorpay_order_id;
@@ -57,7 +53,22 @@ export default postOnly(async (body, req, res) => {
   }
 
   // ---- check 2: the payment, straight from Razorpay ------------------------
-  const payment = await razorpayFetch(`/payments/${encodeURIComponent(paymentId)}`);
+  //
+  // razorpayLookup, not razorpayFetch: a payment id Razorpay has never heard of
+  // must fail exactly like a bad signature does. It used to surface as a 502
+  // with a different message, which told whoever was probing that their
+  // signature had been accepted and only the lookup stopped them — precisely
+  // the distinction the bare `ok: false` above exists to hide.
+  //
+  // A 5xx or an unreachable Razorpay still throws, and still becomes a 502.
+  // That case is not a rejection: the customer may well have paid, and
+  // Checkout.jsx reads a non-`ok:false` failure as "you have been charged,
+  // call us" rather than "your payment failed".
+  const payment = await razorpayLookup(`/payments/${encodeURIComponent(paymentId)}`);
+  if (!payment) {
+    console.error(`Payment ${paymentId} does not exist (order ${orderId})`);
+    return res.status(400).json({ ok: false });
+  }
 
   // `authorized` means captured is still pending (manual-capture accounts);
   // both mean the customer's money is committed. Anything else is not a sale.
@@ -69,39 +80,29 @@ export default postOnly(async (body, req, res) => {
     return res.status(400).json({ ok: false });
   }
 
-  const order = await razorpayFetch(`/orders/${encodeURIComponent(orderId)}`);
+  const order = await razorpayLookup(`/orders/${encodeURIComponent(orderId)}`);
+  if (!order) {
+    console.error(`Order ${orderId} does not exist`);
+    return res.status(400).json({ ok: false });
+  }
   if (order.amount !== payment.amount) {
     console.error(`Amount mismatch on ${orderId}: order=${order.amount} paid=${payment.amount}`);
     return res.status(400).json({ ok: false });
   }
 
   // ---- the sale is real from here on --------------------------------------
-  const notes = order.notes || {};
-  const customer = Object.fromEntries(CUSTOMER_KEYS.map((k) => [k, notes[k] || ""]));
-  const lines = parseItemsNote(notes.items);
-  const total = order.amount / 100;
-  const testMode = keyId.startsWith("rzp_test_");
-
-  // Best-effort. The customer has paid; an email outage is not their problem
-  // and must not become a payment error on their screen.
-  const email = await sendOrderEmails({
-    receipt: order.receipt,
-    paymentId,
-    customer,
-    lines,
-    total,
-    testMode,
-  }).catch((err) => {
-    console.error("Order email threw:", err);
-    return { sent: false };
-  });
+  //
+  // Fulfilment is shared with the webhook rather than done here, so whichever
+  // path reaches a given order first is the one that emails, and the other
+  // stands down. See api/_lib/fulfil.js.
+  const email = await fulfilOrder({ order, paymentId, source: "browser" });
 
   return res.status(200).json({
     ok: true,
     paymentId,
     receipt: order.receipt,
-    amount: total,
-    testMode,
-    emailed: Boolean(email?.sent),
+    amount: order.amount / 100,
+    testMode: keyId.startsWith("rzp_test_"),
+    emailed: Boolean(email?.sent || email?.duplicate),
   });
 });

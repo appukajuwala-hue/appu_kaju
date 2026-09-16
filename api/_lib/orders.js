@@ -5,7 +5,23 @@
  * rather than an endpoint.
  */
 
+import crypto from "node:crypto";
+
 import { products } from "../../src/constants/index.js";
+
+/**
+ * Constant-time compare that tolerates unequal lengths without throwing.
+ *
+ * Used for both the payment signature and the webhook signature. Comparing
+ * with `===` would leak, through timing, how much of a guessed signature was
+ * correct — enough, over many attempts, to reconstruct one byte at a time.
+ */
+export const signatureMatches = (expected, actual) => {
+  const a = Buffer.from(String(expected), "utf8");
+  const b = Buffer.from(String(actual || ""), "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+};
 
 const MAX_QTY = 99;
 const MAX_LINES = 50;
@@ -135,26 +151,67 @@ export const razorpayAuth = () => {
   return { keyId, keySecret };
 };
 
+/**
+ * Calls the Razorpay API.
+ *
+ * On failure the thrown error carries `upstreamStatus`: the status Razorpay
+ * itself replied with, or 0 when the request never got there. Callers need
+ * that to tell two very different situations apart —
+ *
+ *   4xx  Razorpay understood us and said no. The id is not ours, the payment
+ *        does not exist. That is a failed check, not a fault.
+ *   5xx  Razorpay is having a bad day, or the network is. Nothing has been
+ *        proven either way, and a customer who has paid must not be told
+ *        their payment failed.
+ *
+ * Collapsing both into one error is what made a forged payment id and a
+ * Razorpay outage indistinguishable — see the note in verify.js.
+ */
 export const razorpayFetch = async (path, init = {}) => {
   const { keyId, keySecret } = razorpayAuth();
   const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
 
-  const res = await fetch(`${RAZORPAY_API}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Basic ${auth}`,
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-  });
+  let res;
+  try {
+    res = await fetch(`${RAZORPAY_API}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/json",
+        ...init.headers,
+      },
+    });
+  } catch (err) {
+    // DNS, TLS, timeout: the request never reached Razorpay.
+    console.error(`Razorpay ${path} unreachable:`, err?.message || err);
+    const wrapped = httpError(502, "The payment provider could not be reached.");
+    wrapped.upstreamStatus = 0;
+    throw wrapped;
+  }
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = body?.error?.description || `HTTP ${res.status}`;
-    console.error(`Razorpay ${path} failed:`, detail);
-    throw httpError(502, "The payment provider rejected that request.");
+    console.error(`Razorpay ${path} failed (${res.status}):`, detail);
+    const err = httpError(502, "The payment provider rejected that request.");
+    err.upstreamStatus = res.status;
+    throw err;
   }
   return body;
+};
+
+/**
+ * razorpayFetch, but a 4xx from Razorpay resolves to `null` instead of
+ * throwing. A 5xx or an unreachable host still throws, because those mean
+ * "unknown", not "no".
+ */
+export const razorpayLookup = async (path, init = {}) => {
+  try {
+    return await razorpayFetch(path, init);
+  } catch (err) {
+    if (err?.upstreamStatus >= 400 && err.upstreamStatus < 500) return null;
+    throw err;
+  }
 };
 
 /** Shared handler wrapper: POST-only, JSON body, consistent error shape. */

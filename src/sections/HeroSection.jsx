@@ -8,6 +8,7 @@ import {
   usePrefersReducedMotion,
 } from "../lib/gsap";
 import { company } from "../constants";
+import LazyVideo from "../components/LazyVideo";
 
 const HeroSection = () => {
   const root = useRef(null);
@@ -100,16 +101,18 @@ const HeroSection = () => {
           }}
         />
 
-        {/* Served at every size — the clip is only ~2.6MB, and muted +
-            playsInline autoplays on iOS. The gradient above shows while it
-            buffers, so there is no blank frame. */}
-        <video
+        {/* Served at every size — muted + playsInline autoplays on iOS. The
+            gradient above shows while it buffers, so there is no blank frame,
+            which is also what makes deferring the fetch by a frame harmless:
+            LazyVideo holds the request until after first paint, so the
+            headline is not competing with 2.3MB of footage for bandwidth. */}
+        <LazyVideo
           src="/videos/hero-kaju.mp4"
+          poster="/videos/hero-kaju-poster.jpg"
           autoPlay
           muted
           loop
           playsInline
-          preload="auto"
           aria-hidden="true"
           className="absolute inset-0 w-full h-full object-cover"
         />

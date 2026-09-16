@@ -32,6 +32,7 @@ const Checkout = () => {
   const [errors, setErrors] = useState({});
   const [stage, setStage] = useState("");
   const [failure, setFailure] = useState(null);
+  const [testMode, setTestMode] = useState(false);
 
   // Set the instant an order succeeds. Placing an order empties the cart, and
   // an empty cart is exactly what the redirect below watches for — without this
@@ -48,6 +49,23 @@ const Checkout = () => {
     if (placed.current) return;
     if (hydrated && items.length === 0) navigate("/shop", { replace: true });
   }, [hydrated, items.length, navigate]);
+
+  // Whether this deployment is on Razorpay test keys. Asked before the customer
+  // commits to anything, so a soft-launch visitor is never allowed to believe
+  // they have actually bought something. Silent on failure: a banner that
+  // cannot be fetched is not worth blocking a real checkout over.
+  useEffect(() => {
+    let live = true;
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (live && cfg?.testMode) setTestMode(true);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -161,6 +179,7 @@ const Checkout = () => {
       <Seo
         title="Checkout — Appu Kaju"
         description="Complete your Appu Kaju order."
+        noindex
       />
 
       <PageHeader
@@ -297,6 +316,20 @@ const Checkout = () => {
 
             {/* ------------------------------------------------ payment */}
             <h2 className="section-title text-ink md:mt-14 mt-10">Payment</h2>
+
+            {testMode && (
+              <div className="notice-warn mb-5" role="note">
+                <p className="font-bold uppercase tracking-wide text-sm">
+                  Test mode
+                </p>
+                <p className="font-paragraph text-sm mt-1.5 leading-relaxed">
+                  This shop is running on test payment keys. Any card you enter
+                  is a sandbox card, no money will move, and nothing will be
+                  dispatched. This notice disappears by itself once live keys
+                  are in place.
+                </p>
+              </div>
+            )}
 
             <div className="notice-info" role="note">
               <p className="font-paragraph text-sm leading-relaxed">

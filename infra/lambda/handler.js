@@ -19,12 +19,16 @@
  * Deployed as: handler = infra/lambda/handler.handler
  */
 
+import config from "../../api/config.js";
 import createOrder from "../../api/create-order.js";
 import verify from "../../api/verify.js";
+import webhook from "../../api/webhook.js";
 
 const ROUTES = {
+  "/api/config": config,
   "/api/create-order": createOrder,
   "/api/verify": verify,
+  "/api/webhook": webhook,
 };
 
 const JSON_HEADERS = { "content-type": "application/json" };
@@ -36,20 +40,25 @@ const reply = (statusCode, payload) => ({
 });
 
 /**
- * Decodes the event body into whatever the handlers expect on `req.body`.
- * Vercel hands handlers an already-parsed object, so match that contract.
+ * Decodes the event body.
+ *
+ * Returns both shapes, because the handlers need both: `body` is the parsed
+ * object Vercel's convention hands them, and `raw` is the exact bytes Razorpay
+ * sent. api/webhook.js verifies its signature against `raw` — re-serialising
+ * the parsed object reorders keys and changes whitespace, and the HMAC then
+ * never matches.
  */
 const parseBody = (event) => {
-  if (!event.body) return {};
+  if (!event.body) return { body: {}, raw: "" };
   const raw = event.isBase64Encoded
     ? Buffer.from(event.body, "base64").toString("utf8")
     : event.body;
   try {
-    return JSON.parse(raw);
+    return { body: JSON.parse(raw), raw };
   } catch {
     // Same choice as the dev shim: a malformed body becomes an empty one, so
     // the field validators reject it as a clean 400 rather than a 500.
-    return {};
+    return { body: {}, raw };
   }
 };
 
@@ -96,10 +105,14 @@ export const handler = async (event) => {
   const route = ROUTES[path];
   if (!route) return reply(404, { error: "Not found." });
 
+  const { body, raw } = parseBody(event);
   const req = {
     method,
-    body: parseBody(event),
+    body,
+    // Lambda lowercases incoming header names, which is what webhook.js
+    // expects when it reads x-razorpay-signature.
     headers: event?.headers || {},
+    rawBody: raw,
     url: path,
   };
   const { res, settled, hasResponded } = createResponse();

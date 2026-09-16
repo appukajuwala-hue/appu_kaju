@@ -24,21 +24,34 @@ const rupees = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 /**
  * Turns the `items` note back into priced lines.
  *
- * buildNotes writes `"<id>x<qty>, …"`. No product id contains the letter "x",
- * so splitting on the last one is unambiguous. Anything that fails to parse is
- * dropped rather than guessed at — the total always comes from Razorpay, never
- * from this, so a bad parse costs a tidy line item and nothing else.
+ * buildNotes writes `"<id>x<qty>, …"`.
+ *
+ * The greedy `(.+)` is what makes this safe rather than lucky. An earlier
+ * version split on the last "x" and relied on no product id ever containing
+ * one — true of the current eight, but a future `deluxe-500` would have
+ * quietly parsed as id `delu` and vanished from every order email. Greedy
+ * matching takes the longest id that still leaves a trailing quantity, so the
+ * id may contain as many x's as it likes.
+ *
+ * Whitespace is tolerated and trimmed because these notes are visible AND
+ * editable in the Razorpay dashboard — a human tidying one up should not
+ * silently delete a line from a customer's receipt.
+ *
+ * Anything that still fails to parse is dropped rather than guessed at. The
+ * total always comes from Razorpay, never from here, so a bad parse costs a
+ * tidy line item and nothing else.
  */
+const ITEM_RE = /^(.+)x\s*(\d+)$/;
+
 export const parseItemsNote = (note) => {
   if (typeof note !== "string" || !note) return [];
   return note
     .split(",")
     .map((chunk) => {
-      const part = chunk.trim();
-      const at = part.lastIndexOf("x");
-      if (at < 1) return null;
-      const id = part.slice(0, at);
-      const qty = Number(part.slice(at + 1));
+      const match = chunk.trim().match(ITEM_RE);
+      if (!match) return null;
+      const id = match[1].trim();
+      const qty = Number(match[2]);
       const product = products.find((p) => p.id === id);
       if (!product || !Number.isFinite(qty) || qty < 1) return null;
       return { ...product, qty, lineTotal: product.price * qty };

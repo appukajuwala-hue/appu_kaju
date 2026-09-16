@@ -13,6 +13,7 @@
  * bad input before any outbound call, which is the whole point of them.
  */
 
+import { createHmac } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,6 +22,13 @@ const staged = resolve(process.cwd(), "build/fn/infra/lambda/handler.js");
 const target = existsSync(staged) ? staged : resolve(process.cwd(), "infra/lambda/handler.js");
 const { handler } = await import(pathToFileURL(target).href);
 console.log(`testing ${existsSync(staged) ? "staged package" : "repo copy"}: ${target}`);
+
+
+// Resolve api/_lib and the catalogue from whichever copy is under test, so
+// these run against the staged zip contents exactly like the handler does.
+const baseDir = target.replace(/infra[/\\]lambda[/\\]handler\.js$/, "");
+const libUrl = (f) => pathToFileURL(resolve(baseDir, "api/_lib/", f)).href;
+const constantsUrl = () => pathToFileURL(resolve(baseDir, "src/constants/index.js")).href;
 
 const CUST = {
   name: "Asha R",
@@ -124,6 +132,212 @@ await run(
 await run(event("POST", "/api/verify", {}), (r) =>
   check("missing verify fields -> 400", r.statusCode === 400, r.statusCode)
 );
+
+console.log("\n=== order notes round-trip ===");
+{
+  // The Razorpay order's `notes` are the only record of what was bought —
+  // there is no database. If buildNotes and parseItemsNote ever disagree, the
+  // customer's receipt and the shop's picking list silently lose lines while
+  // the money stays correct, which is the worst way for this to fail.
+  const { buildNotes, priceCart } = await import(libUrl("orders.js"));
+  const { parseItemsNote } = await import(libUrl("email.js"));
+  const { products } = await import(constantsUrl());
+
+  const lines = priceCart(products.map((p) => ({ id: p.id, qty: 3 }))).lines;
+  const note = buildNotes(CUST, lines).items;
+  const back = parseItemsNote(note);
+
+  check(
+    "every catalogue line survives the round-trip",
+    back.length === lines.length &&
+      back.every((l, i) => l.id === lines[i].id && l.qty === lines[i].qty && l.lineTotal === lines[i].lineTotal),
+    `${back.length} of ${lines.length}`
+  );
+
+  check(
+    "the full catalogue fits inside Razorpay's 256-char note limit",
+    note.length < 250 && !note.endsWith("\u2026"),
+    `${note.length} chars`
+  );
+
+  // Notes are visible and editable in the Razorpay dashboard, so a human may
+  // well tidy one up. That must not delete a line from someone's receipt.
+  check(
+    "a hand-added space does not drop a line",
+    parseItemsNote("kuber-250x2, rimmee-1kg x1, appu-250x1").length === 3,
+    "line dropped"
+  );
+
+  // Guards the parser against a future SKU whose id contains an "x" — the old
+  // last-index-of split would have read "deluxe-500x2" as id "delu".
+  const withX = { id: "deluxe-500", brandId: "appu", brand: "Deluxe", size: "500 g", weightKg: 0.5, price: 600, image: "/x.png", description: "d" };
+  products.push(withX);
+  check(
+    "an id containing x parses correctly",
+    parseItemsNote("deluxe-500x2").some((l) => l.id === "deluxe-500" && l.qty === 2),
+    "misparsed"
+  );
+  products.pop();
+
+  check("junk is dropped, not guessed at", parseItemsNote("nonsense, x, 5x").length === 0, "parsed junk");
+  check("an empty note yields no lines", parseItemsNote("").length === 0 && parseItemsNote(null).length === 0, "not empty");
+}
+
+console.log("\n=== order email rendering ===");
+{
+  // These emails are assembled from customer-supplied strings and mailed out.
+  // Every one of them must arrive as text, never as markup.
+  const prevKey = process.env.RESEND_API_KEY;
+  const prevFrom = process.env.ORDER_EMAIL_FROM;
+  const prevTo = process.env.ORDER_EMAIL_TO;
+  process.env.RESEND_API_KEY = "re_test_dummy";
+  process.env.ORDER_EMAIL_FROM = "orders@appukaju.com";
+  process.env.ORDER_EMAIL_TO = "shop@appukaju.com";
+
+  const realFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url, init) => {
+    sent.push(JSON.parse(init.body));
+    return { ok: true, status: 200, text: async () => "" };
+  };
+
+  const { sendOrderEmails, parseItemsNote } = await import(libUrl("email.js") + "?fresh");
+  const result = await sendOrderEmails({
+    receipt: "APK-TEST01",
+    paymentId: "pay_TEST",
+    customer: {
+      name: '<img src=x onerror="alert(1)">Ravi & "Sons"',
+      email: "buyer@example.com",
+      phone: "9876543210",
+      address: "12 Hazratganj <script>alert(1)</script>",
+      city: "Lucknow",
+      state: "UP",
+      pin: "226001",
+    },
+    lines: parseItemsNote("kuber-250x2"),
+    total: 438,
+    testMode: true,
+  });
+
+  globalThis.fetch = realFetch;
+
+  check("both emails are sent", result.sent === true && sent.length === 2, JSON.stringify(result));
+  const all = JSON.stringify(sent);
+  check("script tags are escaped", !/<script/i.test(all), "INJECTION");
+  check("img onerror is escaped", !all.includes("<img src=x"), "INJECTION");
+  check("the api key never reaches a payload", !all.includes("re_test_dummy"), "KEY LEAKED");
+  check("customer copy replies to the shop", sent[0].reply_to === "shop@appukaju.com", sent[0].reply_to);
+  check("shop copy replies to the customer", sent[1].reply_to === "buyer@example.com", sent[1].reply_to);
+  check("test-mode notice is present", sent[0].html.includes("Test mode"), "missing");
+
+  // Unconfigured is a normal state, not an error: payments must still succeed.
+  delete process.env.RESEND_API_KEY;
+  const none = await sendOrderEmails({ receipt: "X", paymentId: "p", customer: {}, lines: [], total: 0, testMode: true });
+  check("unconfigured reports rather than throws", none.sent === false, JSON.stringify(none));
+
+  if (prevKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = prevKey;
+  if (prevFrom === undefined) delete process.env.ORDER_EMAIL_FROM; else process.env.ORDER_EMAIL_FROM = prevFrom;
+  if (prevTo === undefined) delete process.env.ORDER_EMAIL_TO; else process.env.ORDER_EMAIL_TO = prevTo;
+}
+
+
+console.log("\n=== config endpoint ===");
+{
+  // GET, unlike every other route here, and it must never leak the secret.
+  await run(event("GET", "/api/config"), (r, b) =>
+    check(
+      "GET /api/config -> 200 testMode:true on test keys",
+      r.statusCode === 200 && b.testMode === true && b.configured === true,
+      r.statusCode + " " + r.body
+    )
+  );
+
+  await run(event("GET", "/api/config"), (r) =>
+    check("config is not cacheable", r.headers["cache-control"] === "no-store", r.headers["cache-control"])
+  );
+
+  await run(event("GET", "/api/config"), (r) =>
+    check(
+      "config response carries no secret",
+      !r.body.includes(process.env.RAZORPAY_KEY_SECRET || "\u0000"),
+      "SECRET LEAKED"
+    )
+  );
+
+  await run(event("POST", "/api/config", {}), (r) =>
+    check("POST /api/config -> 405", r.statusCode === 405 && r.headers.allow === "GET", r.statusCode)
+  );
+}
+
+
+console.log("\n=== webhook signature ===");
+{
+  // The signature is the only thing between a stranger and a fabricated
+  // "payment.captured" that would have the shop dispatch goods nobody paid
+  // for. Every case below must be refused.
+  const SECRET = "whsec_test_dummy";
+  const prev = process.env.RAZORPAY_WEBHOOK_SECRET;
+  process.env.RAZORPAY_WEBHOOK_SECRET = SECRET;
+
+  const sign = (raw) => createHmac("sha256", SECRET).update(raw).digest("hex");
+  const hook = (payload, signature, { base64 = false } = {}) => {
+    const ev = event("POST", "/api/webhook", JSON.stringify(payload), { base64 });
+    if (signature !== null) ev.headers["x-razorpay-signature"] = signature;
+    return ev;
+  };
+
+  const captured = {
+    event: "payment.captured",
+    payload: { payment: { entity: { id: "pay_TEST", order_id: "order_TEST" } } },
+  };
+
+  await run(hook(captured, "deadbeef"), (r, b) =>
+    check("forged signature -> 400 {ok:false}", r.statusCode === 400 && b.ok === false, r.statusCode)
+  );
+
+  await run(hook(captured, null), (r) =>
+    check("no signature header -> 400", r.statusCode === 400, r.statusCode)
+  );
+
+  // Correctly signed, but for a DIFFERENT body than the one delivered. This is
+  // the attack that lands if the signature is ever checked against the parsed
+  // object re-serialised, instead of the exact bytes received.
+  await run(hook(captured, sign(JSON.stringify({ event: "payment.captured", payload: {} }))), (r) =>
+    check("signature from a different body -> 400", r.statusCode === 400, r.statusCode)
+  );
+
+  // Valid signature, event we do not act on: acknowledged so Razorpay stops
+  // retrying, and crucially never reaching fulfilment.
+  const refund = { event: "refund.created", payload: {} };
+  await run(hook(refund, sign(JSON.stringify(refund))), (r, b) =>
+    check(
+      "valid signature, unhandled event -> 200 ignored",
+      r.statusCode === 200 && b.ignored === "refund.created",
+      r.statusCode + " " + r.body
+    )
+  );
+
+  // Base64 delivery: Lambda may send either encoding, and the raw bytes have to
+  // survive the decode or the HMAC breaks.
+  const noIds = { event: "payment.captured", payload: { payment: { entity: {} } } };
+  await run(hook(noIds, sign(JSON.stringify(noIds)), { base64: true }), (r, b) =>
+    check(
+      "base64 body verifies, missing ids -> 200 ignored",
+      r.statusCode === 200 && b.ignored === "no order id",
+      r.statusCode + " " + r.body
+    )
+  );
+
+  // Missing secret must fail closed, and with a 500 so Razorpay retries rather
+  // than dropping events while the variable is unset.
+  delete process.env.RAZORPAY_WEBHOOK_SECRET;
+  await run(hook(captured, sign(JSON.stringify(captured))), (r) =>
+    check("no RAZORPAY_WEBHOOK_SECRET -> 500 (retryable)", r.statusCode === 500, r.statusCode)
+  );
+
+  if (prev === undefined) delete process.env.RAZORPAY_WEBHOOK_SECRET;
+  else process.env.RAZORPAY_WEBHOOK_SECRET = prev;
+}
 
 if (!process.env.SKIP_LIVE) {
   console.log("\n=== server-side pricing, against the live Razorpay API ===");

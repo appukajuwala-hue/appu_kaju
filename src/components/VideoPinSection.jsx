@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { gsap, useGSAP, usePrefersReducedMotion } from "../lib/gsap";
+import LazyVideo from "./LazyVideo";
 
 /**
  * The reference's signature moment: the section pins and a small circular
@@ -67,14 +68,14 @@ const VideoPinSection = () => {
   return (
     <section ref={root} className="vd-pin-section">
       <div className="video-box size-full">
-        <video
+        <LazyVideo
           ref={videoRef}
           src="/videos/harvest.mp4"
+          poster="/videos/harvest-poster.jpg"
           playsInline
           muted
           loop
           autoPlay
-          preload="auto"
           aria-hidden="true"
         />
 

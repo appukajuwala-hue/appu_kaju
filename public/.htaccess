@@ -1,0 +1,77 @@
+# Apache / LiteSpeed configuration for Hostinger.
+#
+# Vite copies everything in public/ into dist/ verbatim, so this ships with the
+# build and needs no separate upload step.
+#
+# It does the same job as the rewrite in vercel.json and the 403/404 mapping in
+# infra/cloudfront-distribution.json: this is a client-side-routed SPA, so any
+# path that is not a real file must return index.html, or a hard refresh on
+# /shop or /checkout gives a 404 instead of the app.
+#
+# Harmless anywhere else — S3, CloudFront and Vercel all ignore it.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Never rewrite the API. If a Node app is proxied at /api/*, this lets it
+  # through; if there is no Node app, the request 404s honestly instead of
+  # being handed a page of HTML that the client cannot parse as JSON.
+  RewriteRule ^api/ - [L]
+
+  # Real files and directories are served as-is.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else is a client-side route.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# ---------------------------------------------------------------- caching
+#
+# Matches the strategy used on S3 and in infra/node/server.js so every host
+# behaves identically. Vite fingerprints assets/, so those are immutable.
+# index.html must never be cached, or visitors keep loading the previous
+# build's asset filenames and see a blank page.
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  <FilesMatch "\.(js|css|woff2|woff)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  <FilesMatch "\.(png|jpe?g|webp|svg|ico|mp4)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+
+  # index.html is matched by the .html rule above; assets/ filenames are
+  # fingerprinted so the immutable rule is safe for them.
+
+  # ------------------------------------------------------------- security
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header always unset X-Powered-By
+</IfModule>
+
+# ------------------------------------------------------------ compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Fonts and video are already compressed; re-compressing wastes CPU.
+<IfModule mod_mime.c>
+  AddType font/woff2 .woff2
+  AddType video/mp4 .mp4
+</IfModule>
+
+# Never serve the source env file, whatever ends up on the server.
+<FilesMatch "^\.env">
+  Require all denied
+</FilesMatch>

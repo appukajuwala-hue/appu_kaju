@@ -1,5 +1,67 @@
-@import url("https://fonts.googleapis.com/css2?family=Antonio:wght@400..700&family=Inter:wght@400;500;600&display=swap");
 @import "tailwindcss";
+
+/* Self-hosted webfonts.
+ *
+ * These were an @import from fonts.googleapis.com, which cost two problems at
+ * once. A CSS @import is render-blocking and serialises badly — the browser
+ * must fetch this stylesheet, parse it, then discover the font stylesheet, then
+ * fetch the fonts, on a chain of two extra DNS lookups and TLS handshakes.
+ * And every visitor's IP address was disclosed to Google to get them, which
+ * made the "no third-party trackers" line in the privacy policy untrue.
+ *
+ * Both faces are OFL-licensed, so serving them ourselves is permitted. The
+ * files came straight from Google's own CDN and are byte-identical to what it
+ * would have served; only the origin changed.
+ *
+ * The subsets and unicode-ranges are Google's, unaltered. Splitting latin from
+ * latin-ext matters here: the rupee sign is U+20B9, which falls in latin-ext's
+ * U+20AD-20C0 range and is NOT in the latin file. Drop latin-ext and every
+ * price on the site loses its currency symbol.
+ *
+ * Regenerate by re-fetching the URL in README.md and re-downloading the woff2
+ * files it names.
+ */
+
+@font-face {
+  font-family: "Antonio";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/antonio-latin.woff2") format("woff2");
+  /* latin */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Antonio";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/antonio-latin-ext.woff2") format("woff2");
+  /* latin-ext */
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+  /* latin */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+  /* latin-ext */
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 
 /* Palette taken from the real Appu Kaju packaging:
    the three sub-brands are a blue family (Kuber aqua -> Appu royal -> Rimmee navy),
@@ -17,6 +79,37 @@
 
   --font-sans: "Antonio", sans-serif;
   --font-paragraph: "Inter", system-ui, sans-serif;
+}
+
+/* Off-screen rather than display:none — a hidden element cannot take focus,
+   so the link would never appear for the people it exists for. */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -150%);
+  z-index: 100;
+  padding: 0.85rem 1.5rem;
+  border-radius: 0 0 0.9rem 0.9rem;
+  background-color: #12386e;
+  color: #f6efe2;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus-visible {
+  transform: translate(-50%, 0);
+  outline: 2px solid #f2b705;
+  outline-offset: 2px;
+}
+
+/* The main region takes focus programmatically via the skip link; it should
+   not draw a focus ring for that, only real keyboard focus draws rings. */
+#main:focus {
+  outline: none;
 }
 
 html,
