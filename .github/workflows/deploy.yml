@@ -12,12 +12,17 @@
 #   vars.CLOUDFRONT_DISTRIBUTION the distribution id
 #   secrets.AWS_ROLE_ARN         arn:aws:iam::<account>:role/<role>
 
-name: Deploy to AWS
+name: Deploy to AWS (S3 + CloudFront)
 
+# DORMANT. The site is hosted on AWS Amplify, which deploys itself from the
+# connected branch — see amplify.yml and infra/AMPLIFY.md. This workflow is the
+# alternative self-managed setup described in infra/README.md, kept so it can be
+# brought back without rebuilding it.
+#
+# It no longer runs on push: with no bucket, distribution or role behind these
+# variables, every push to main would otherwise produce a failed deploy. Start
+# it by hand from the Actions tab only after completing infra/README.md.
 on:
-  push:
-    branches: [main]
-  # Lets you re-run a deploy from the Actions tab without pushing a commit.
   workflow_dispatch:
 
 # Never let two deploys race each other onto the same bucket.

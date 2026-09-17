@@ -1,0 +1,61 @@
+# Checks every push and pull request. Touches no cloud account.
+#
+# Deploying is Amplify's job now — it builds from the connected branch and runs
+# these same checks in amplify.yml before publishing. This workflow exists so a
+# pull request shows a red cross before anyone merges it, rather than only
+# failing once Amplify tries to build.
+
+name: Checks
+
+on:
+  push:
+    branches: [main, aws]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      # Packaged first so the tests exercise the staged zip — the exact file
+      # that gets uploaded to Lambda — which proves its import paths resolve.
+      - name: Package the Lambda
+        run: |
+          chmod +x infra/package-lambda.sh
+          infra/package-lambda.sh
+
+      # The payment path's security checks. Offline: SKIP_LIVE stops before the
+      # one check that calls Razorpay, and the dummy keys are never valid.
+      - name: Test
+        env:
+          SKIP_LIVE: "1"
+          RAZORPAY_KEY_ID: rzp_test_ci_dummy
+          RAZORPAY_KEY_SECRET: ci_dummy_secret
+        run: node infra/lambda/handler.test.js
+
+      # The upload for the Lambda console. Download it from the run's summary
+      # page whenever api/ or src/constants/ has changed — see infra/AMPLIFY.md.
+      - name: Keep the Lambda zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-fn
+          path: build/fn.zip
+          retention-days: 30
