@@ -103,16 +103,23 @@ Razorpay. `--memory-size 256` buys proportionally faster CPU; at 256 MB the free
 
 **Do this in the console, not the CLI** — a `--environment` flag puts your secret
 into shell history. Lambda → `appukaju-api` → Configuration → Environment
-variables → Edit, and add:
+variables → Edit, and add all six:
 
-| Key | Value |
-|---|---|
-| `RAZORPAY_KEY_ID` | `rzp_test_…` |
-| `RAZORPAY_KEY_SECRET` | the secret |
+| Key | Value | Without it |
+|---|---|---|
+| `RAZORPAY_KEY_ID` | `rzp_test_…`, later `rzp_live_…` | no payments at all |
+| `RAZORPAY_KEY_SECRET` | the matching secret | no payments at all |
+| `RAZORPAY_WEBHOOK_SECRET` | the secret you type when creating the webhook in step 8 — **not** the API key secret | `/api/webhook` answers 500 and Razorpay retries |
+| `RESEND_API_KEY` | `re_…`, Sending access | payments work, no order emails |
+| `ORDER_EMAIL_FROM` | `Appu Kaju <orders@appukaju.com>` — must be on the domain verified in Resend | Resend rejects every send with a 403 |
+| `ORDER_EMAIL_TO` | the shop's inbox, `appukajuwala@gmail.com` | the shop gets no copy |
 
-Optional, for order emails — without them payments still work, and
-`sendOrderEmails` just reports `{sent: false}`: `RESEND_API_KEY`,
-`ORDER_EMAIL_FROM`, `ORDER_EMAIL_TO`.
+`RAZORPAY_WEBHOOK_SECRET` can only be set once step 8 exists; until then the
+webhook simply fails closed, which is safe. Everything else belongs here from the
+start.
+
+Lambda reads environment variables when a new instance starts, so a changed
+value reaches requests within a few minutes rather than instantly.
 
 Lambda environment variables are encrypted at rest and cost nothing. Secrets
 Manager would bill $0.40 per secret per month for no benefit here.
@@ -248,10 +255,13 @@ Against the CloudFront domain. `curl -i` so you see the status.
 
 1. **`/` loads**, and a hard refresh on `/checkout` and `/terms` both render the
    app — proves the 403/404 mapping.
-2. **`GET /api/create-order` → 405** with an `allow: POST` header. Proves the
-   Lambda is reachable and routed. A 403 here means step 2's `add-permission`
-   was missed; a 502 usually means the Host header is being forwarded.
-3. **Server-side pricing holds:**
+2. **`GET /api/config` → 200** with `{"testMode":true,"configured":true}`. The
+   cheapest proof that the Lambda is reachable, routed, and can see its
+   environment. `"configured":false` means the Razorpay variables are not set.
+   A 403 here means step 2's `add-permission` was missed; a 502 usually means
+   the Host header is being forwarded.
+3. **`GET /api/create-order` → 405** with an `allow: POST` header.
+4. **Server-side pricing holds:**
    ```bash
    curl -s -X POST https://<domain>/api/create-order \
      -H 'content-type: application/json' \
@@ -260,39 +270,117 @@ Against the CloudFront domain. `curl -i` so you see the status.
           "items":[{"id":"rimmee-250","qty":2}],"amount":1}'
    ```
    Must return `"amount":600`, not `1`.
-4. **Forged signature rejected:**
+5. **Forged signature rejected:**
    ```bash
    curl -s -X POST https://<domain>/api/verify -H 'content-type: application/json' \
      -d '{"razorpay_order_id":"order_X","razorpay_payment_id":"pay_X","razorpay_signature":"deadbeef"}'
    ```
    Must return `{"ok":false}` with status 400.
-5. **A real test payment** — card `4111 1111 1111 1111`, any future expiry,
-   CVV `123`, OTP `1234`. It should appear in the Razorpay dashboard with the
-   delivery address in its notes.
-6. **Push a trivial commit** and confirm the Action deploys it.
+6. **A real test payment** — card `4111 1111 1111 1111`, any future expiry,
+   CVV `123`, then **Success** on the simulated OTP screen. It should appear in
+   the Razorpay dashboard with the delivery address in its notes, both emails
+   should arrive, and the order's notes should gain `sent: browser`.
+7. **Push a trivial commit** and confirm the Action deploys it.
 
 Logs for anything that misbehaves: CloudWatch → Log groups → `/aws/lambda/appukaju-api`.
 
+## 8. The Razorpay webhook
+
+Only possible now — Razorpay needs a URL it can reach.
+
+Razorpay Dashboard → **Accounts & Settings → Webhooks → Add New Webhook**:
+
+| Field | Value |
+|---|---|
+| Webhook URL | `https://<domain>/api/webhook` |
+| Secret | choose a long random value |
+| Active events | `payment.captured` |
+
+Put the same secret in the Lambda's `RAZORPAY_WEBHOOK_SECRET`.
+
+**Test the one case that matters:** make a test payment and close the browser
+tab the instant Razorpay's window disappears, before the confirmation page
+loads. Both emails should still arrive, and the Razorpay order's notes should
+read `sent: webhook` rather than `sent: browser`. That is the whole reason the
+webhook exists, and it is the only failure mode you cannot test by behaving
+normally.
+
+Test and live mode have **separate** webhook lists in Razorpay. Create it again
+after switching to live keys.
+
 ## What is already tested
 
-`infra/lambda/handler.js` was exercised with 23 synthetic Function URL events
-against the staged zip contents: routing, the 405/404 guards, base64 and
-malformed body decoding, all ten cart and address validation rejections, forged
-signature rejection, and a live Razorpay order proving an injected `amount: 1`
-is ignored in favour of the catalogue price.
+`node infra/lambda/handler.test.js` runs 43 checks against the staged zip
+contents, and CI runs it before every deploy:
 
-## Adding appukaju.com later
+- routing and the 405/404 guards, including `GET /api/config`
+- base64 and malformed body decoding
+- all ten cart and address validation rejections
+- forged payment signatures rejected
+- order notes round-tripping through `buildNotes` / `parseItemsNote` for the
+  whole catalogue, including ids containing `x` and hand-edited whitespace
+- order email HTML escaping against script and `onerror` injection
+- the config endpoint never leaking the key secret
+- webhook signatures: forged, missing, computed over a different body, a valid
+  signature on an ignored event, base64 delivery, and a missing secret failing
+  closed with a retryable 500
 
-Not done yet — the domain currently serves a different site on Hostinger.
+Beyond the suite, a live Razorpay test order proved an injected `amount: 1` is
+ignored in favour of the catalogue price, and two real test payments produced
+four delivered emails and a correctly written `sent` marker that stopped a
+replay from sending duplicates.
 
-1. Request a certificate in **us-east-1** (CloudFront only reads certificates
-   from that region, whatever region everything else is in):
-   `aws acm request-certificate --domain-name appukaju.com --subject-alternative-names www.appukaju.com --validation-method DNS --region us-east-1`
-2. Add the CNAME records ACM gives you at Hostinger; wait for `ISSUED`.
-3. Add both names as `Aliases` on the distribution and attach the certificate.
-4. Point `www` at the CloudFront domain with a CNAME. The bare domain cannot be
-   a CNAME — either use Hostinger's redirect from `appukaju.com` to `www`, or
-   move DNS to Route 53 and use an ALIAS record ($0.50/month).
+## Adding appukaju.com
+
+**Where things live.** The domain is *registered* at GoDaddy, but its nameservers
+are delegated to Hostinger (`ns1/ns2.dns-parking.com`), so **every DNS change
+happens in Hostinger's DNS zone editor, not GoDaddy's.** Records added at GoDaddy
+do nothing. The same zone holds the client's email (MX records) and the Resend
+records for order email — no step here touches either.
+
+**No Route 53.** A bare domain cannot be a CNAME, but Hostinger supports ALIAS
+records at the root, and an ALIAS may target any hostname — including a
+`d….cloudfront.net` domain. The zone already uses one.
+
+1. **Request a certificate in `us-east-1`.** CloudFront only reads certificates
+   from that region, whatever region everything else is in:
+   ```bash
+   aws acm request-certificate --domain-name appukaju.com \
+     --subject-alternative-names www.appukaju.com \
+     --validation-method DNS --region us-east-1
+   ```
+2. **Validate it.** Add the two CNAME records ACM gives you in Hostinger's DNS
+   zone. Enter the *name* without the trailing `.appukaju.com` — Hostinger
+   appends the domain itself. Wait for the certificate status to read `ISSUED`.
+   This can be done days ahead of the cutover; the old site is unaffected.
+3. **Attach it.** Add `appukaju.com` and `www.appukaju.com` as `Aliases` on the
+   distribution and select the certificate. The site is still served by
+   Hostinger at this point; nothing public has changed.
+4. **Test on the CloudFront domain** before touching DNS. Everything in *Verify*
+   above should pass against `https://d….cloudfront.net`.
+
+### The cutover
+
+The only step customers can see. The existing WooCommerce site keeps serving
+right up to this moment, and remains on Hostinger as a fallback afterwards.
+
+5. **Disable Hostinger CDN** for the website first — hPanel → the website →
+   Performance → CDN → off. Hostinger CDN *creates and manages* the root ALIAS
+   record, and Hostinger's own guidance is to fully disable it before changing
+   the domain's records, or the two conflict.
+6. **Re-check the zone.** Disabling CDN may replace the root ALIAS with plain
+   `A` / `AAAA` records. A root holds an ALIAS *or* address records, never
+   both — remove any `@` `A` and `AAAA` records before the next step.
+7. **Point the root at CloudFront:** `ALIAS` · `@` · `d….cloudfront.net`.
+   Only one ALIAS is allowed at the root, so edit the existing one if present.
+8. **Point `www` at CloudFront:** edit the existing `CNAME` · `www` from
+   `www.appukaju.com.cdn.hstgr.net` to `d….cloudfront.net`.
+9. **Leave every other row alone** — the two `MX` records, the root `TXT` SPF,
+   `autodiscover`, `autoconfig`, `ftp`, `resend._domainkey`, `rsend` and `send`.
+
+The root and `www` records carry a 300-second TTL, so most visitors see the new
+site within minutes, though Hostinger advises allowing up to 24 hours. Rolling
+back is steps 7 and 8 in reverse, then re-enabling CDN.
 
 ## Removing it all
 

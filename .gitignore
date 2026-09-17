@@ -12,3 +12,12 @@ npm-debug.log*
 # Secrets: *.local already covers .env.local, but a bare .env does not.
 .env
 .env*.local
+
+# Screenshots and scratch images dropped at the repo root while working.
+# This repository is public, and hosting-panel screenshots carry account
+# usernames, server IPs and SSH ports. Real site imagery lives in public/ and
+# source-images/, which these patterns deliberately do not touch.
+/Screenshot*.png
+/Screenshot*.jpg
+/image.png
+/image*.png
