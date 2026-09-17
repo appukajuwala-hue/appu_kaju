@@ -41,9 +41,14 @@ Nobody is overcharged. But checkout is broken for everyone until the Lambda
 catches up.
 
 **So: whenever a commit changes anything under `api/` or `src/constants/`,
-upload a new Lambda zip.** The CI run for that commit attaches it — Actions →
-the run → Artifacts → `lambda-fn`. Or build it locally with
-`infra/package-lambda.sh`, which writes `build/fn.zip`.
+upload a new Lambda zip.** Two ways to get it:
+
+- Build it locally with `infra/package-lambda.sh`, which writes `build/fn.zip`.
+- Or download it from the CI run for that commit — Actions → the run →
+  Artifacts → `lambda-fn`. **GitHub wraps every artifact in a zip of its own**,
+  so that download is a zip *containing* `fn.zip`. Extract it once and upload
+  the inner `fn.zip`. Uploading the outer wrapper gives Lambda a zip inside a
+  zip, and every request then fails with `Runtime.HandlerNotFound`.
 
 ## 1. The Lambda
 
