@@ -51,6 +51,12 @@ jobs:
           RAZORPAY_KEY_SECRET: ci_dummy_secret
         run: node infra/lambda/handler.test.js
 
+      # The Node server a host like Hostinger runs directly, started as a real
+      # process: page routing, Brotli/gzip, byte ranges (without which videos
+      # do not play on iPhones), 304s, path traversal, and the API through it.
+      - name: Test the Node server
+        run: node infra/node/server.test.js
+
       # The upload for the Lambda console. Download it from the run's summary
       # page whenever api/ or src/constants/ has changed — see infra/AMPLIFY.md.
       - name: Keep the Lambda zip
