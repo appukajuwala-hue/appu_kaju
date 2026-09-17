@@ -205,6 +205,17 @@ try {
       const text = r.body.toString("utf8");
       check(`${path} leaks nothing`, !/RAZORPAY|"name":\s*"appu-kaju"|import "\.\/infra/.test(text), r.status);
     }
+
+    // dist/ really does contain a .htaccess, so this proves the block works on
+    // a file that exists rather than one that would 404 anyway.
+    const htaccess = await http("GET", "/.htaccess");
+    check(
+      "/.htaccess exists in dist but is not served",
+      existsSync(join(DIST, ".htaccess")) && htaccess.status === 404 && !/RewriteEngine/.test(htaccess.body.toString()),
+      `${htaccess.status}`
+    );
+    const nestedDot = await http("GET", "/assets/.env");
+    check("dotfiles in subfolders -> 404 too", nestedDot.status === 404, nestedDot.status);
   }
 
   // ---------------------------------------------------------------------- api

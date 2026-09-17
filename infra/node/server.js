@@ -332,6 +332,17 @@ const server = createServer(async (req, res) => {
     return send(res, 405, { error: "Method not allowed." }, { Allow: "GET, HEAD" });
   }
 
+  // Never serve dotfiles. The build ships a Hostinger .htaccess, and a stray
+  // .env copied into dist/ by mistake must not become a public download.
+  // .well-known/ is the one legitimate exception (security.txt, domain
+  // verification files).
+  const hidden = urlPath
+    .split("/")
+    .some((segment) => segment.startsWith(".") && segment !== ".well-known");
+  if (hidden) {
+    return send(res, 404, { error: "Not found." }, { "Cache-Control": "no-store" });
+  }
+
   const direct = await resolveFile(urlPath === "/" ? "/index.html" : urlPath);
   if (direct) return serveFile(req, res, direct, urlPath === "/" ? "/index.html" : urlPath);
 

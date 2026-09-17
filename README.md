@@ -128,6 +128,17 @@ horizontal scrollbar.
 
 ## Deploying
 
+**The live site runs on Hostinger** as a Node.js web app — see
+[`infra/HOSTINGER.md`](infra/HOSTINGER.md). `npm start` runs `server.js`, which
+serves the built pages and the API together. Pushing to `main` redeploys it.
+
+`infra/` also holds two fully built alternatives that are **not in use**: AWS
+Amplify ([`infra/AMPLIFY.md`](infra/AMPLIFY.md)) and S3 + CloudFront + Lambda
+([`infra/README.md`](infra/README.md)).
+
+The notes below apply only if the site is ever moved to a plain static host,
+which cannot run the payment API on its own.
+
 This is a client-side-routed SPA. Any static host must rewrite unknown paths to
 `index.html`, or `/shop` and friends will 404 on a hard refresh:
 
