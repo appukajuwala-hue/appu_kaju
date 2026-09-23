@@ -19,6 +19,8 @@
  *                                 decides whether the sale happened.
  */
 
+import { apiUrl } from "../lib/api";
+
 const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 
 let scriptPromise = null;
@@ -105,7 +107,7 @@ export async function processPayment({ items, customer, expectedAmount, onStage 
 
   let order;
   try {
-    order = await postJson("/api/create-order", { items, customer });
+    order = await postJson(apiUrl("/api/create-order"), { items, customer });
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -180,7 +182,7 @@ export async function processPayment({ items, customer, expectedAmount, onStage 
   onStage?.("confirming");
 
   try {
-    const verified = await postJson("/api/verify", {
+    const verified = await postJson(apiUrl("/api/verify"), {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,

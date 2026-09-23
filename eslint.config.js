@@ -34,7 +34,7 @@ export default [
     // api/ runs on Vercel's Node runtime, not in a browser: `process` and
     // `Buffer` are legitimate there and would otherwise fail no-undef. The
     // React rules above are meaningless for these files.
-    files: ["api/**/*.js", "infra/**/*.js", "vite.config.js"],
+    files: ["api/**/*.js", "infra/**/*.js", "vite.config.js", "server.js"],
     languageOptions: {
       globals: globals.node,
       parserOptions: { ecmaVersion: "latest", sourceType: "module" },

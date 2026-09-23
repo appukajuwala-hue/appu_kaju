@@ -1,0 +1,40 @@
+# AWS Amplify Hosting build.
+#
+# Amplify reads this file from the repository root and it overrides whatever
+# the console auto-detects. It builds and hosts the PAGES only. The API lives
+# on a separate Lambda Function URL — see infra/AMPLIFY.md — and the site
+# reaches it through VITE_API_BASE, which must be set in the Amplify console
+# BEFORE the first build: Vite bakes it into the bundle at build time.
+#
+# The same checks that gate a merge in .github/workflows/ci.yml gate a deploy
+# here too. If pricing, signature verification, webhook handling or email
+# escaping regresses, the build fails and the live site keeps its last good
+# version.
+
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # Match the Lambda runtime, so the site and the API are built and
+        # tested against the same Node.
+        - nvm install 22
+        - nvm use 22
+        - npm ci --cache .npm --prefer-offline
+    build:
+      commands:
+        - npm run lint
+        # Offline: SKIP_LIVE stops before the one check that calls Razorpay,
+        # and these dummy keys are never valid credentials.
+        - SKIP_LIVE=1 RAZORPAY_KEY_ID=rzp_test_ci_dummy RAZORPAY_KEY_SECRET=ci_dummy_secret node infra/lambda/handler.test.js
+        - npm run build
+        # .htaccess is Apache/LiteSpeed configuration for a Hostinger deploy.
+        # Amplify ignores it but would serve it publicly, so drop it.
+        - rm -f dist/.htaccess
+  artifacts:
+    baseDirectory: dist
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - .npm/**/*

@@ -6,6 +6,7 @@ import { useCart } from "../cart/context";
 import { processPayment } from "../cart/payment";
 import { saveOrder } from "../cart/orders";
 import { company } from "../constants";
+import { apiUrl } from "../lib/api";
 
 // No card fields. Razorpay collects those inside its own iframe, which is what
 // keeps this site out of PCI scope — see src/cart/payment.js.
@@ -56,7 +57,7 @@ const Checkout = () => {
   // cannot be fetched is not worth blocking a real checkout over.
   useEffect(() => {
     let live = true;
-    fetch("/api/config")
+    fetch(apiUrl("/api/config"))
       .then((r) => (r.ok ? r.json() : null))
       .then((cfg) => {
         if (live && cfg?.testMode) setTestMode(true);
