@@ -14,7 +14,7 @@
  * of which reject before any outbound call.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import { request } from "node:http";
@@ -41,6 +41,28 @@ const check = (label, ok, detail = "") => {
     fail += 1;
     console.log(`  FAIL  ${label}   ${detail}`);
   }
+};
+
+/**
+ * Some hosts start a Node app by require()-ing the entry file instead of
+ * importing it — LiteSpeed's lsnode.js, which Hostinger uses, is one. If any
+ * module in the graph gains a top-level await, require() throws
+ * ERR_REQUIRE_ASYNC_MODULE before a line runs, and the site serves 503 with a
+ * perfectly clean build log. This caught exactly that, so it runs first.
+ */
+const checkRequireable = () => {
+  const r = spawnSync(
+    process.execPath,
+    ["--input-type=commonjs", "-e", "require('./server.js'); process.exit(0);"],
+    { cwd: ROOT, encoding: "utf8", timeout: 30000 }
+  );
+  const stderr = r.stderr || "";
+  const tla = stderr.includes("ERR_REQUIRE_ASYNC_MODULE");
+  check(
+    "entry file can be require()d — no top-level await in the graph",
+    r.status === 0 && !tla,
+    tla ? "ERR_REQUIRE_ASYNC_MODULE — a top-level await crept back in" : stderr.split("\n")[0] || `exit ${r.status}`
+  );
 };
 
 /** Raw HTTP, returning status, headers and the exact bytes sent. */
@@ -97,6 +119,9 @@ if (!ready) {
 }
 
 try {
+  console.log("\n=== startup contract ===");
+  checkRequireable();
+
   const precompressLine = log.split("\n").find((l) => l.startsWith("precompressed"));
   console.log(`started on ${PORT} — ${precompressLine || "no precompression line"}`);
 

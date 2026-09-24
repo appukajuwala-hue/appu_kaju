@@ -355,19 +355,36 @@ const server = createServer(async (req, res) => {
   send(res, 404, { error: "Not found." });
 });
 
-// Compress before listening, so the first visitor never gets the slow path.
-// If it fails — an unreadable dist/, say — the site still serves uncompressed.
-try {
-  const { files, saved } = await precompress();
-  console.log(`precompressed ${files} files, ${Math.round(saved / 1024)} KB saved per full load`);
-} catch (err) {
-  console.error("precompression skipped:", err?.message || err);
-}
-
 const port = Number(process.env.PORT) || 3000;
-server.listen(port, () => {
-  console.log(`Appu Kaju listening on ${port}`);
-  console.log(`serving ${ROOT}`);
-});
+
+/**
+ * Compress first, then listen, so the first visitor never gets the slow path.
+ *
+ * DELIBERATELY NOT `await precompress()` AT THE TOP LEVEL. Some hosts start a
+ * Node app by `require()`-ing the entry file rather than importing it —
+ * LiteSpeed's lsnode.js, which Hostinger uses, is one. `require()` can load an
+ * ES module, but not one whose graph contains top-level await: it throws
+ * ERR_REQUIRE_ASYNC_MODULE before a single line runs, and the site answers 503
+ * with nothing in the build log to explain it.
+ *
+ * Keeping the module synchronously evaluable costs nothing here, because
+ * listening is asynchronous anyway.
+ *
+ * Precompression failing — an unreadable dist/, say — must not stop the server
+ * starting; the site simply serves uncompressed.
+ */
+precompress()
+  .then(({ files, saved }) => {
+    console.log(`precompressed ${files} files, ${Math.round(saved / 1024)} KB saved per full load`);
+  })
+  .catch((err) => {
+    console.error("precompression skipped:", err?.message || err);
+  })
+  .finally(() => {
+    server.listen(port, () => {
+      console.log(`Appu Kaju listening on ${port}`);
+      console.log(`serving ${ROOT}`);
+    });
+  });
 
 export default server;
