@@ -19,9 +19,15 @@ Pushing to the connected branch redeploys everything: Hostinger pulls the
 commit, installs, builds and restarts. Unlike the Amplify setup, there is no
 separate Lambda to keep in step, so a price change is just a push.
 
-Hostinger's DNS zone, the client's mailboxes and the Resend records for order
-email all stay where they are. The domain is registered at GoDaddy, but its
-nameservers point at Hostinger, so every DNS change happens in Hostinger.
+The domain is registered at GoDaddy and **its DNS is served by GoDaddy**, so
+every DNS change happens there. Pointing the nameservers at Hostinger was tried
+first and does not work for this domain: Hostinger's zone editor only manages
+domains registered with Hostinger, so `nova`/`cosmos.dns-parking.com` answered
+for the domain while every write — the domain portfolio editor, the email
+"Connect automatically" button — failed with *Domain not found*, leaving the
+zone empty and the site unreachable. Hostinger's supported route for an
+externally registered domain is **Connect via DNS records**, which is what is in
+use: an A record at GoDaddy pointing to the app's IP.
 
 ## App settings
 
@@ -93,34 +99,66 @@ Before the switch:
    none.
 3. **Record the DNS zone.** Custom records may not survive the domain moving.
 
-### Records to confirm after the switch
+### The live DNS zone
 
-These carry mail and order email. Hostinger re-adds its own defaults when a
-domain is attached; the custom ones below may need adding back.
+All of these live at **GoDaddy → appukaju.com → DNS Records**. Hostinger cannot
+edit them.
 
-| Type | Name | Value |
-|---|---|---|
-| MX | `@` | `mx1.hostinger.in` (5), `mx2.hostinger.in` (10) |
-| TXT | `@` | `v=spf1 include:_spf.mail.hostinger.com ~all` |
-| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:appukajuwala@gmail.com` |
-| TXT | `resend._domainkey` | the DKIM key — copy it from Resend → Domains → `appukaju.com` |
-| CNAME | `rsend` | `rsend-apne1.forge.rmta.net` |
-| CNAME | `send` | `send.forge.rmta.net` |
-| CNAME | `autodiscover` | `autodiscover.mail.hostinger.com` |
-| CNAME | `autoconfig` | `autoconfig.mail.hostinger.com` |
+| Type | Name | Value | Why |
+|---|---|---|---|
+| A | `@` | `82.112.239.13` | the Hostinger app; from Connect via DNS records |
+| CNAME | `www` | `appukaju.com` | GoDaddy's default, already correct |
+| TXT | `resend._domainkey` | the DKIM key from Resend → Domains → `appukaju.com` | signs order email |
+| CNAME | `send` | `send.forge.rmta.net` | Resend's return path |
+| CNAME | `rsend` | `rsend-apne1.forge.rmta.net` | Resend's return path |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:appukajuwala@gmail.com` | monitor-only while the setup beds in |
 
-Afterwards, Resend → Domains should still show `appukaju.com` as **verified**.
+GoDaddy's own `NS`, `SOA` and `_domainconnect` records stay as they are.
+
+The A record is pinned to an IP, which is the one cost of this route: if
+Hostinger ever moves the account to another server the site goes dark until
+this is updated. The IP is shown in the website dashboard under **Connect
+domain → Connect via DNS records**.
+
+**`_dmarc` started as `p=quarantine` with reports going to a GoDaddy address.**
+It was lowered to `p=none` so a mistyped DKIM key could not silently send every
+order confirmation to spam. Once order email has been landing in inboxes for a
+few weeks, raise it back to `p=quarantine`.
+
+### Mail to @appukaju.com
+
+There is none, by choice. The domain move deleted the old mailboxes; the
+Emails section now holds a fresh **Free Business Email** plan (to 2027-09-23)
+with zero mailboxes, and no MX or SPF record exists. Nothing is broken by this:
+the site publishes two Gmail addresses and order alerts go to
+`appukajuwala@gmail.com`. hPanel will keep showing *"Your domain setup isn't
+complete"* — that nag is expected.
+
+To give the shop a real `@appukaju.com` address later, create the mailbox and
+add at GoDaddy: `MX @ mx1.hostinger.in` (5), `MX @ mx2.hostinger.in` (10),
+`TXT @ v=spf1 include:_spf.mail.hostinger.com ~all`, and CNAMEs `autodiscover`
+and `autoconfig` to `autodiscover.mail.hostinger.com` / `autoconfig.mail.hostinger.com`.
+Only one `v=spf1` record may exist at the root.
 
 ## The Razorpay webhook
 
-Razorpay keeps **separate webhook lists for test and live mode**.
+Razorpay keeps **separate webhook lists for test and live mode**. Both point at
+the same URL; switching modes means creating the webhook again in the other
+list, with a new secret.
 
 | Mode | URL | Secret |
 |---|---|---|
-| Test | `https://<temporary-domain>/api/webhook` | goes in `RAZORPAY_WEBHOOK_SECRET` while on test keys |
+| Test | `https://appukaju.com/api/webhook` | goes in `RAZORPAY_WEBHOOK_SECRET` while on test keys |
 | Live | `https://appukaju.com/api/webhook` | replaces it when switching to live keys |
 
-Event: `payment.captured`.
+Events: **`payment.captured`** and **`order.paid`** — the two in `HANDLED`
+(`api/webhook.js`). Anything else is answered 200 and ignored.
+
+A quick way to tell whether the secret reached the server, without making a
+payment: `POST /api/webhook` with a junk signature. **400** means the variable
+is set and the signature check ran; **500** means `RAZORPAY_WEBHOOK_SECRET` is
+missing, which is deliberately retryable so Razorpay redelivers once it is
+fixed.
 
 ## Logs and restarts
 
