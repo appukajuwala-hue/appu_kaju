@@ -339,6 +339,143 @@ console.log("\n=== webhook signature ===");
   else process.env.RAZORPAY_WEBHOOK_SECRET = prev;
 }
 
+console.log("\n=== order fulfilment is claimed once ===");
+{
+  // Both paths fire on every sale, milliseconds apart. Exactly one may email.
+  // Razorpay's notes are last-write-wins with no compare-and-set, so the whole
+  // scheme rests on claiming first and reading the claim back — these cases are
+  // the ones that broke when the marker was written after sending instead.
+  const prev = {
+    key: process.env.RAZORPAY_KEY_ID,
+    secret: process.env.RAZORPAY_KEY_SECRET,
+    resend: process.env.RESEND_API_KEY,
+    from: process.env.ORDER_EMAIL_FROM,
+    to: process.env.ORDER_EMAIL_TO,
+  };
+  process.env.RAZORPAY_KEY_ID = "rzp_test_fake";
+  process.env.RAZORPAY_KEY_SECRET = "fake_secret";
+  process.env.RESEND_API_KEY = "re_test_dummy";
+  process.env.ORDER_EMAIL_FROM = "orders@appukaju.com";
+  process.env.ORDER_EMAIL_TO = "shop@appukaju.com";
+
+  const realFetch = globalThis.fetch;
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+
+  // A stand-in Razorpay that behaves like the real one in the way that
+  // matters: PATCH replaces the notes wholesale, and every call costs a
+  // round-trip, so concurrent callers genuinely interleave.
+  const makeStore = (notes) => ({
+    order: { id: "order_FAKE", receipt: "APK-FAKE01", amount: 21900, notes: { ...notes } },
+    emails: [],
+    notesWhenMailed: null,
+    failMail: false,
+  });
+
+  const install = (store) => {
+    globalThis.fetch = async (url, init = {}) => {
+      await tick();
+      if (String(url).startsWith("https://api.resend.com/")) {
+        store.notesWhenMailed ??= { ...store.order.notes };
+        if (store.failMail) return { ok: false, status: 422, text: async () => "no" };
+        store.emails.push(JSON.parse(init.body));
+        return { ok: true, status: 200, text: async () => "{}" };
+      }
+      if ((init.method || "GET") === "PATCH") {
+        store.order.notes = JSON.parse(init.body).notes;
+      }
+      return { ok: true, status: 200, json: async () => ({ ...store.order }) };
+    };
+  };
+
+  const ADDRESS = { name: "Asha R", email: "a@b.com", phone: "9876543210",
+    address: "12 Hazratganj", city: "Lucknow", state: "UP", pin: "226001",
+    items: "kuber-250x1" };
+
+  const { fulfilOrder } = await import(libUrl("fulfil.js") + "?fresh");
+
+  // --- both paths, same order, at the same moment ---------------------------
+  {
+    const store = makeStore(ADDRESS);
+    install(store);
+    const [browser, webhook] = await Promise.all([
+      fulfilOrder({ order: { ...store.order }, paymentId: "pay_A", source: "browser" }),
+      fulfilOrder({ order: { ...store.order }, paymentId: "pay_A", source: "webhook" }),
+    ]);
+    check("one order mails once, not twice", store.emails.length === 2,
+      `${store.emails.length} messages sent`);
+    check("the browser sends, the webhook stands down",
+      browser.sent === true && webhook.duplicate === true,
+      `${JSON.stringify(browser)} / ${JSON.stringify(webhook)}`);
+    check("the claim is written before the mail goes out",
+      Boolean(store.notesWhenMailed?.sent), JSON.stringify(store.notesWhenMailed));
+    check("the delivery address survives the claim",
+      store.order.notes.address === "12 Hazratganj" && store.order.notes.items === "kuber-250x1",
+      JSON.stringify(store.order.notes));
+  }
+
+  // --- two callers with no stagger between them -----------------------------
+  {
+    const store = makeStore(ADDRESS);
+    install(store);
+    const both = await Promise.all([
+      fulfilOrder({ order: { ...store.order }, paymentId: "pay_B", source: "browser" }),
+      fulfilOrder({ order: { ...store.order }, paymentId: "pay_B", source: "browser" }),
+    ]);
+    check("simultaneous claims still mail once", store.emails.length === 2,
+      `${store.emails.length} messages sent`);
+    check("exactly one caller is told it sent",
+      both.filter((r) => r.sent).length === 1, JSON.stringify(both));
+  }
+
+  // --- the browser never arrives --------------------------------------------
+  {
+    const store = makeStore(ADDRESS);
+    install(store);
+    const webhook = await fulfilOrder({
+      order: { ...store.order }, paymentId: "pay_C", source: "webhook",
+    });
+    check("the webhook alone still fulfils", webhook.sent === true && store.emails.length === 2,
+      `${JSON.stringify(webhook)} ${store.emails.length}`);
+  }
+
+  // --- an order already marked ----------------------------------------------
+  {
+    const store = makeStore({ ...ADDRESS, sent: "browser:11223344" });
+    install(store);
+    const again = await fulfilOrder({
+      order: { ...store.order }, paymentId: "pay_D", source: "webhook",
+    });
+    check("a marked order is left alone", again.duplicate === true && store.emails.length === 0,
+      `${JSON.stringify(again)} ${store.emails.length}`);
+  }
+
+  // --- the mail fails --------------------------------------------------------
+  {
+    const store = makeStore(ADDRESS);
+    install(store);
+    store.failMail = true;
+    const attempt = await fulfilOrder({
+      order: { ...store.order }, paymentId: "pay_E", source: "browser",
+    });
+    check("a failed send reports rather than throws", attempt.sent === false,
+      JSON.stringify(attempt));
+    check("a failed send releases the claim, so a retry can try again",
+      store.order.notes.sent === undefined, JSON.stringify(store.order.notes));
+    check("releasing the claim keeps the address",
+      store.order.notes.address === "12 Hazratganj", JSON.stringify(store.order.notes));
+  }
+
+  globalThis.fetch = realFetch;
+  for (const [k, v] of Object.entries({
+    RAZORPAY_KEY_ID: prev.key, RAZORPAY_KEY_SECRET: prev.secret,
+    RESEND_API_KEY: prev.resend, ORDER_EMAIL_FROM: prev.from, ORDER_EMAIL_TO: prev.to,
+  })) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+}
+
+
 if (!process.env.SKIP_LIVE) {
   console.log("\n=== server-side pricing, against the live Razorpay API ===");
   // rimmee-250 is ₹300 each. The payload claims the whole order costs ₹1.
