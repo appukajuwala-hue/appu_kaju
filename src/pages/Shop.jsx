@@ -65,7 +65,7 @@ const Shop = () => {
     <div ref={root}>
       <Seo
         title="Shop — Appu Kaju cashew packs from 250g to 10kg"
-        description="Eight cashew packs across three grades: Kuber, Appu and Rimmee Kaju. From ₹219 for 250g up to ₹12,000 for 10kg."
+        description="Eight cashew packs across three grades: Kuber, Appu and Rimmee Kaju. From ₹280 for 250g up to ₹10,000 for 10kg."
       />
       {/* Prices and availability for all eight packs, so a search result can
           show the price under the listing. Built from the same catalogue the
