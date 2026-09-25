@@ -167,7 +167,7 @@ export const products = [
     brand: "Kuber Kaju",
     size: "250 g",
     weightKg: 0.25,
-    price: 219,
+    price: 280,
     image: "/images/kuber-kaju.png",
     description:
       "A 250 g pouch of our everyday grade — evenly roasted whole kernels. The size to keep in the kitchen for cooking, garnishing and snacking through the week.",
@@ -178,7 +178,7 @@ export const products = [
     brand: "Kuber Kaju",
     size: "10 kg",
     weightKg: 10,
-    price: 8760,
+    price: 9200,
     image: "/images/kuber-kaju.png",
     description:
       "Ten kilos of our everyday grade, packed for kitchens that get through kaju by the sack — mithai counters, caterers and restaurant prep.",
@@ -189,7 +189,7 @@ export const products = [
     brand: "Appu Kaju",
     size: "250 g",
     weightKg: 0.25,
-    price: 243,
+    price: 290,
     image: "/images/appu-kaju.png",
     description:
       "Our signature grade in a 250 g pouch. Whole white kernels, hand-sorted for size and colour — the pack to start with if you are new to us.",
@@ -200,7 +200,7 @@ export const products = [
     brand: "Appu Kaju",
     size: "1 kg",
     weightKg: 1,
-    price: 972,
+    price: 950,
     image: "/images/appu-kaju.png",
     description:
       "A full kilo of the grade the shop was built on. Enough for a month of family cooking, and the size most of our regulars reorder.",
@@ -211,7 +211,7 @@ export const products = [
     brand: "Appu Kaju",
     size: "10 kg",
     weightKg: 10,
-    price: 9720,
+    price: 9500,
     image: "/images/appu-kaju.png",
     description:
       "Bulk signature grade for shops and commercial kitchens — the same hand-sorted kernels as the retail pouch, vacuum-sealed in a 10 kg carton.",
@@ -233,7 +233,7 @@ export const products = [
     brand: "Rimmee Kaju",
     size: "1 kg",
     weightKg: 1,
-    price: 1200,
+    price: 1000,
     image: "/images/rimmee-kaju.png",
     description:
       "A kilo of premium grade, sized for festival gifting and for households that want the best on the table at Diwali.",
@@ -244,7 +244,7 @@ export const products = [
     brand: "Rimmee Kaju",
     size: "10 kg",
     weightKg: 10,
-    price: 12000,
+    price: 10000,
     image: "/images/rimmee-kaju-10kg.png",
     description:
       "Ten kilos of our finest grade, for premium retailers and gifting operations that need volume without dropping the standard.",
